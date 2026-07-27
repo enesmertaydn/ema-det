@@ -2,6 +2,16 @@
 data/
 results/*.pt
 results/*.log
+results/*.onnx
+hardware/hls/weights.h
+hardware/hls/input_test_*.bin
+hardware/hls/*_prj/
+hardware/hls/*.log
+
+# HLS/Vivado build byproducts (if this ever gets synthesized here)
+*.jou
+*.rpt
+vivado*.log
 
 # Python
 __pycache__/

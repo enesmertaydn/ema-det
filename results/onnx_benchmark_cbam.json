@@ -1,0 +1,12 @@
+{
+  "config": "cbam",
+  "checkpoint": "C:\\Users\\enesm\\Desktop\\emadet\\emadetforspringer\\results\\emadet_cbam_best.pt",
+  "onnx_parity_ok": true,
+  "onnx_parity_max_diff": 4.291534423828125e-06,
+  "n_params": 1543023,
+  "note": "proxy hardware, not Jetson/FPGA",
+  "pytorch_cuda_fps_batch1": 262.56320290055515,
+  "pytorch_cpu_fps_batch1": 176.7612294459366,
+  "onnx_CPUExecutionProvider_fps_batch1": 650.1195634920767,
+  "onnx_CPUExecutionProvider_requested_as": "TensorrtExecutionProvider"
+}

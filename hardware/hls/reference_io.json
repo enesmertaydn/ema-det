@@ -1,0 +1,42 @@
+[
+  {
+    "input_bin": "input_test_000000.bin",
+    "gate1_logit": 4.001889705657959,
+    "gate2_logit": 4.7598443031311035
+  },
+  {
+    "input_bin": "input_test_000001.bin",
+    "gate1_logit": -0.5462507009506226,
+    "gate2_logit": 5.848639965057373
+  },
+  {
+    "input_bin": "input_test_000002.bin",
+    "gate1_logit": -0.042893409729003906,
+    "gate2_logit": 5.661945819854736
+  },
+  {
+    "input_bin": "input_test_000003.bin",
+    "gate1_logit": -3.956353187561035,
+    "gate2_logit": -6.298115253448486
+  },
+  {
+    "input_bin": "input_test_000004.bin",
+    "gate1_logit": -0.6061764359474182,
+    "gate2_logit": -2.5035643577575684
+  },
+  {
+    "input_bin": "input_test_000005.bin",
+    "gate1_logit": 0.48826271295547485,
+    "gate2_logit": -3.0527496337890625
+  },
+  {
+    "input_bin": "input_test_000006.bin",
+    "gate1_logit": 5.835632801055908,
+    "gate2_logit": 12.36752700805664
+  },
+  {
+    "input_bin": "input_test_000007.bin",
+    "gate1_logit": 5.483328819274902,
+    "gate2_logit": 8.085116386413574
+  }
+]
