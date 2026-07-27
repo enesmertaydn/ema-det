@@ -13,8 +13,6 @@
 % conference draft without being re-verified.
 %
 % OPEN ITEMS (do not submit before resolving):
-%   - Table III's MobileNetV3-Small / ShuffleNetV2 / YOLOv8n rows: training
-%     in progress at draft time, marked TODO below.
 %   - Section "Cross-Sensor Generalization" from the original Faz 1 plan:
 %     no thermal/IR dataset is available in this project; either source one
 %     or drop the claim. Not fabricated here.
@@ -71,9 +69,14 @@ deviation ($8.85$ vs.\ $2.54$ points, with 2 of 5 seeds collapsing to
 74--79\% recall) — an unacceptable reliability profile for a
 safety-relevant edge verifier, and the actual reason CBAM is excluded from
 the final architecture, rather than a uniform accuracy penalty as our
-preliminary ablation had suggested. \emph{[Abstract to be finalized once
-Table III's additional lightweight-model comparisons complete — see TODO in
-source.]}
+preliminary ablation had suggested. Against lightweight baselines trained
+from scratch on the same corrected dataset, a full detection architecture
+(YOLOv8n) reaches substantially higher mAP@0.5:0.95 ($49.59\pm0.45\%$) but
+its recall is capped at $73.75\pm1.86\%$ — well below EMA-Det's
+$96.33\pm2.54\%$ — concretely illustrating this paper's central claim that
+mAP is the wrong optimization target for a second-stage verifier, since
+system-level recall $R_{\text{total}} = R_{\text{proposal}} \times
+R_{\text{verifier}}$ is gated by the weaker of the two factors.}
 \end{abstract}
 
 \noindent\textbf{Keywords:} UAV Detection, Edge Computing, Region
@@ -338,21 +341,43 @@ with training budget — could not distinguish).
 
 \begin{table}[t]
 \centering
-\caption{RoI-verification comparison, clean dataset, $N{=}5$ seeds where applicable. \emph{TODO: MobileNetV3-Small, ShuffleNetV2 x0.5, and YOLOv8n rows are from training in progress at draft time — see \texttt{results/baseline\_*.json} for final values before submission.}}
+\caption{RoI-verification comparison, clean dataset, $N{=}5$ seeds, identical training protocol (scratch, 150 epochs, early stopping). All non-EMA-Det rows trained via \texttt{src/train\_baseline.py} / \texttt{src/train\_yolov8n\_clean.py}; see \texttt{results/baseline\_*.json}.}
 \label{tab:baselines}
 \begin{tabular}{lccccc}
 \toprule
 Model & mAP@0.5 & mAP@.5:.95 & Recall & Params & FLOPs \\
 \midrule
-EMA-Det (final) & $56.64{\pm}2.44$ & $25.18{\pm}2.08$ & $96.33{\pm}2.54$ & 1.52M & 423.1M \\
-YOLOv8n (scratch, clean data) & \emph{TODO} & \emph{TODO} & \emph{TODO} & 3.01M & -- \\
-MobileNetV3-Small (scratch) & \emph{TODO} & \emph{TODO} & \emph{TODO} & 0.93M & \emph{TODO} \\
-ShuffleNetV2 x0.5 (scratch) & \emph{TODO} & \emph{TODO} & \emph{TODO} & 0.35M & \emph{TODO} \\
+EMA-Det (final) & $56.64{\pm}2.44$ & $25.18{\pm}2.08$ & $\mathbf{96.33{\pm}2.54}$ & 1.52M & 423.1M \\
+YOLOv8n (scratch) & $\mathbf{79.45{\pm}0.69}$ & $\mathbf{49.59{\pm}0.45}$ & $73.75{\pm}1.86$ & 3.01M & 8.2G \\
+MobileNetV3-Small (scratch) & $57.04{\pm}4.51$ & $26.35{\pm}3.41$ & $94.05{\pm}1.39$ & 0.93M & 38.0M \\
+ShuffleNetV2 x0.5 (scratch) & $56.26{\pm}2.11$ & $25.68{\pm}1.37$ & $93.80{\pm}1.11$ & 0.35M & 24.9M \\
 \bottomrule
 \end{tabular}
 \end{table}
 
+This table is the clearest empirical support for Section~1's central claim.
+YOLOv8n — a full detection architecture with a proper multi-scale head and
+DFL-based box regression — reaches nearly double EMA-Det's mAP@0.5:0.95
+($49.59\pm0.45\%$ vs.\ $25.18\pm2.08\%$), a real and unsurprising advantage
+in localization quality. But its recall is capped at
+$73.75\pm1.86\%$ (tight variance across seeds — this is a consistent
+property of the architecture on this task, not seed noise), well below
+every other model in this table. Given
+$R_{\text{total}} = R_{\text{proposal}} \times R_{\text{verifier}}$, this
+$\sim$23-point recall deficit is exactly the failure mode this paper argues
+against: a verifier optimized for (and evaluated by) mAP can look
+substantially stronger on the metric authors typically report while being
+a \emph{worse} second-stage verifier in the metric that actually determines
+system-level performance. The two lightweight backbones (MobileNetV3-Small,
+ShuffleNetV2 x0.5), trained from scratch with no architectural changes beyond
+a 1-channel first layer and the same verification head as EMA-Det, land close
+to EMA-Det on both mAP and recall despite having 40--77\% fewer parameters —
+they are competitive generic backbones for this task, but neither offers
+EMA-Det's early-exit compute savings (Section~\ref{sec:earlyexit}) or its
+recall stability advantage over CBAM (Section~\ref{sec:cbam}).
+
 \subsection{Early-Exit Trade-off}
+\label{sec:earlyexit}
 
 Table~\ref{tab:earlyexit} reports the $\tau$ sweep for the final (no-CBAM)
 model on the corrected dataset. Because the clean test set no longer

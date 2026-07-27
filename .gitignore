@@ -3,6 +3,8 @@ data/
 results/*.pt
 results/*.log
 results/*.onnx
+results/yolov8n_clean/
+src/*.pt
 hardware/hls/weights.h
 hardware/hls/input_test_*.bin
 hardware/hls/*_prj/
