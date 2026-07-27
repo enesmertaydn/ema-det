@@ -91,7 +91,12 @@ def train_one_run(seed: int, cfg: BaselineConfig, device: torch.device):
         with torch.no_grad():
             macs, _ = thop_profile(model_copy, inputs=(dummy,), verbose=False)[:2]
         del model_copy
-        flops_str = clever_format([macs * 2], "%.3f")[0]
+        # clever_format returns a bare string (not a list) for single-element
+        # input, unlike its 2+-element behavior — indexing [0] on that would
+        # silently grab just the first character (e.g. "3" instead of
+        # "3.256M"). Pass n_params alongside it, matching train.py's usage,
+        # to get the documented tuple-return behavior instead.
+        flops_str, _ = clever_format([macs * 2, n_params], "%.3f")
     print(f"  Params: {n_params:,}   FLOPs: {flops_str}")
 
     train_dir = os.path.join(cfg.dataset_root, "train")

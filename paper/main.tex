@@ -181,10 +181,13 @@ qualitatively from the conference version's ablation.
 
 \begin{figure}[t]
 \centering
-% \includegraphics[width=0.7\textwidth]{figures/architecture.pdf}
-\caption{EMA-Det architecture. Dashed orange paths indicate early-exit
+\includegraphics[width=0.55\textwidth]{figures/architecture.png}
+\caption{EMA-Det architecture. Orange paths indicate early-exit
 routes; candidates confidently classified as background at Gate~1 or
-Gate~2 skip the remaining blocks.}
+Gate~2 skip the remaining blocks. (Schematic regenerated from the
+implementation in \texttt{src/ema\_det.py} via
+\texttt{src/make\_architecture\_figure.py}; replace with a
+professionally typeset version before submission.)}
 \label{fig:arch}
 \end{figure}
 
