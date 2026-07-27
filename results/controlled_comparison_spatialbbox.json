@@ -1,0 +1,59 @@
+{
+  "note": "Both configs trained under identical N=5-seed / 150-epoch / early-stopping(patience=20) protocol — supersedes the conference Table II/III numbers, which were confounded by mismatched budgets.",
+  "config": {
+    "seeds": [
+      42,
+      7,
+      123,
+      2024,
+      31415
+    ],
+    "epochs": 150,
+    "patience": 20,
+    "lr": 0.001,
+    "weight_decay": 0.0001,
+    "lambda_bbox": 2.0,
+    "lambda_e1": 0.3,
+    "lambda_e2": 0.4
+  },
+  "results": {
+    "final_spatialbbox": {
+      "summary": {
+        "test_map50": {
+          "mean": 58.03135633468628,
+          "std": 1.5969850585270626
+        },
+        "test_map75": {
+          "mean": 24.070973992347717,
+          "std": 2.4325670186164614
+        },
+        "test_map50_95": {
+          "mean": 28.042208552360535,
+          "std": 1.896889079844683
+        },
+        "test_precision": {
+          "mean": 95.00436648741845,
+          "std": 0.9330802572219289
+        },
+        "test_recall": {
+          "mean": 96.07594933668481,
+          "std": 0.4736275171632757
+        },
+        "test_f1": {
+          "mean": 95.53352980553409,
+          "std": 0.45515106407348777
+        },
+        "test_mean_iou": {
+          "mean": 65.69603866892088,
+          "std": 1.4581714446593173
+        },
+        "best_val_map50": {
+          "mean": 67.20651626586914,
+          "std": 1.2476110376146345
+        }
+      },
+      "n_params": 1532391,
+      "flops": "423.085M"
+    }
+  }
+}

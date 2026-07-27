@@ -2,11 +2,11 @@
   "config": "final",
   "checkpoint": "C:\\Users\\enesm\\Desktop\\emadet\\emadetforspringer\\results\\emadet_final_best.pt",
   "onnx_parity_ok": true,
-  "onnx_parity_max_diff": 1.1444091796875e-05,
-  "n_params": 1517031,
+  "onnx_parity_max_diff": 1.71661376953125e-05,
+  "n_params": 1532391,
   "note": "proxy hardware, not Jetson/FPGA",
-  "pytorch_cuda_fps_batch1": 464.9939099695293,
-  "pytorch_cpu_fps_batch1": 235.58838694520134,
-  "onnx_CPUExecutionProvider_fps_batch1": 1018.8893942715634,
+  "pytorch_cuda_fps_batch1": 378.72340973448195,
+  "pytorch_cpu_fps_batch1": 176.57925510983844,
+  "onnx_CPUExecutionProvider_fps_batch1": 738.1429150934035,
   "onnx_CPUExecutionProvider_requested_as": "TensorrtExecutionProvider"
 }

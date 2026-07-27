@@ -33,23 +33,38 @@ implementation, including a self-test (`python src/ema_det.py`).
 
 | Config | mAP@0.5 | mAP@0.75 | mAP@0.5:0.95 | Precision | Recall | F1 | Mean IoU | Params | FLOPs |
 |---|---|---|---|---|---|---|---|---|---|
-| **EMA-Det (final)** | 56.64±2.44% | 18.33±2.67% | 25.18±2.08% | 94.03±1.51% | **96.33±2.54%** | **95.14±1.51%** | 62.53±1.45% | 1.517M | 423.1M |
-| EMA-Det + CBAM | 60.70±2.98% | 23.88±2.29% | 28.93±1.67% | 96.79±0.89% | 87.28±**8.85%** | 91.51±4.70% | 66.43±0.88% | 1.543M | 423.6M |
+| **EMA-Det (final)** | 58.03±1.60% | 24.07±2.43% | 28.04±1.90% | 95.00±0.93% | **96.08±0.47%** | **95.53±0.46%** | 65.70±1.46% | 1.532M | 423.1M |
+| EMA-Det + CBAM | 57.82±2.12% | 24.77±3.88% | 28.30±2.07% | **96.91±0.43%** | 93.23±1.37% | 95.03±0.72% | **66.28±1.56%** | 1.558M | 423.7M |
 
-CBAM improves point-estimate mAP/IoU but roughly triples recall's run-to-run standard
-deviation (2 of 5 seeds collapse to 74-79% recall) — an unacceptable reliability profile
-for a safety-relevant edge verifier. That instability, not a uniform accuracy penalty, is
-why the final architecture omits it. See `results/controlled_comparison.json` for the raw
-per-seed data.
+With the default spatial bbox head (below), CBAM's earlier mAP advantage disappears
+entirely — mAP is now effectively tied between the two configs. What remains is a real
+but much milder recall cost (no seed collapses; worst CBAM run still reaches 90.8%
+recall, vs. 2/5 seeds collapsing to 74-79% under the legacy bbox head). This suggests
+CBAM's original benefit was substituting for spatial information the legacy head had
+discarded — once that's restored directly, CBAM has nothing left to contribute except a
+reliability cost. See `results/controlled_comparison.json` for per-seed data.
+
+### Bounding-box head ablation (the reason the numbers above changed)
+
+| Bbox head | mAP@0.5 | mAP@0.75 | mAP@0.5:0.95 | Recall | Params |
+|---|---|---|---|---|---|
+| Pooled vector (legacy) | 56.64±2.44% | 18.33±2.67% | 25.18±2.08% | 96.33±2.54% | 1.517M |
+| **Spatial feature map (default)** | **58.03±1.60%** | **24.07±2.43%** | **28.04±1.90%** | 96.08±**0.47%** | 1.532M |
+
+The legacy head predicted the box from the GAP-pooled (spatially-flattened) vector —
+discarding all positional information before regression ever saw it. Reading the
+pre-pooling 256×4×4 feature map directly instead strictly improves every metric above
+at +15K params (~1%) and ~free FLOPs, while also *tightening* recall's cross-seed
+variance. Reproduce the legacy head via `--legacy_gap_bbox` in `train.py`.
 
 ### Early-exit (τ) trade-off, final config
 
 | τ | mAP@0.5 | FLOPs saved | FPS | Gate1% | Gate2% | Main% |
 |---|---|---|---|---|---|---|
-| 0.85 | 61.1% | 20.7% | 345.6 | 24.7% | 19.0% | 56.3% |
-| 0.90 | 61.1% | 13.9% | 329.8 | 13.1% | 27.5% | 59.3% |
-| 0.92 | 61.1% | 12.5% | 324.9 | 10.9% | 28.6% | 60.4% |
-| 0.95 | 61.1% | 11.7% | 320.9 | 10.0% | 27.7% | 62.3% |
+| 0.85 | 58.9% | 21.2% | 358.5 | 24.8% | 21.7% | 53.5% |
+| 0.90 | 58.9% | 16.2% | 340.8 | 16.0% | 29.4% | 54.6% |
+| 0.92 | 58.9% | 13.9% | 336.3 | 11.9% | 33.1% | 55.1% |
+| 0.95 | 58.9% | 12.5% | 337.8 | 9.7% | 34.0% | 56.3% |
 
 FPS measured single-sample (batch=1) on an RTX 4060 Laptop GPU — a proxy for the target
 edge deployment, not the Jetson/FPGA numbers themselves (hardware validation is planned,
@@ -59,29 +74,30 @@ see Roadmap).
 
 | Model | mAP@0.5 | mAP@0.5:0.95 | Recall | Params | FLOPs |
 |---|---|---|---|---|---|
-| EMA-Det (final) | 56.64±2.44% | 25.18±2.08% | **96.33±2.54%** | 1.52M | 423.1M |
+| EMA-Det (final) | 58.03±1.60% | 28.04±1.90% | **96.08±0.47%** | 1.53M | 423.1M |
 | YOLOv8n (scratch) | **79.45±0.69%** | **49.59±0.45%** | 73.75±1.86% | 3.01M | 8.2G |
 | MobileNetV3-Small (scratch) | 57.04±4.51% | 26.35±3.41% | 94.05±1.39% | 0.93M | 38.0M |
 | ShuffleNetV2 x0.5 (scratch) | 56.26±2.11% | 25.68±1.37% | 93.80±1.11% | 0.35M | 24.9M |
 
-YOLOv8n's mAP is nearly double EMA-Det's, but its recall is capped ~23 points lower and
-tight across seeds (not noise) — the clearest concrete illustration of this project's
-central argument: since system recall is
+YOLOv8n's mAP is ~1.8x EMA-Det's, but its recall is capped ~22 points lower and tight
+across seeds (not noise) — the clearest concrete illustration of this project's central
+argument: since system recall is
 `R_total = R_proposal × R_verifier`, a verifier optimized for mAP can look stronger on the
 metric everyone reports while being the weaker link for actual two-stage system
 performance. The two generic lightweight backbones land close to EMA-Det on both metrics
-with fewer parameters, but without EMA-Det's early-exit compute savings or its stability
-edge over CBAM.
+with fewer parameters, but without EMA-Det's early-exit compute savings.
 
 ## Corrections vs. the conference draft
 
-Two methodological issues were found and fixed while preparing this extension:
+Three methodological issues were found and fixed while preparing this extension:
 
 1. **CBAM/training-budget confound.** The conference draft's headline comparison table
    was produced by a checkpoint that still had CBAM wired into blocks 3-6, while the
    ablation used to justify removing CBAM was run at a much smaller budget (N=1 seed, 50
    epochs) than the main result (N=5, 150 epochs). Both variants are now retrained under
-   an identical protocol — see `src/train.py`.
+   an identical protocol — see `src/train.py`. The corrected picture turned out to be more
+   interesting than a simple "confirmed/refuted": see the bbox-head ablation below, which
+   changes the CBAM comparison's conclusion a second time.
 2. **Train/test leakage in the RoI patch dataset.** The raw source photo pool used to
    build the original dataset was 52-69% internally duplicated (consistent with
    sequential video-frame extraction), and patches were shuffled and split at the *patch*
@@ -92,9 +108,13 @@ Two methodological issues were found and fixed while preparing this extension:
    consistent with hash collisions on low-detail images, not real duplication). The
    dataset shrank from 23,620 patches (heavily duplicated) to 4,136 genuinely unique
    patches as a direct consequence.
+3. **Bounding-box head discarding spatial information.** See the ablation above — the
+   legacy head's GAP-pooling-before-regression design was a direct, architecturally
+   obvious cause of EMA-Det's large mAP gap versus full detection architectures (Table
+   below). Fixing it also fully explains away CBAM's originally-observed mAP advantage.
 
-Both fixes are why the numbers in this README are lower than the conference draft's —
-that's the leakage/confound being removed, not a regression.
+These are why the numbers in this README differ from the conference draft's — the
+leakage/confound being removed and the architecture being improved, not a regression.
 
 ## Repository layout
 

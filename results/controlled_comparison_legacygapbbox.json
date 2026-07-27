@@ -1,0 +1,97 @@
+{
+  "note": "Both configs trained under identical N=5-seed / 150-epoch / early-stopping(patience=20) protocol — supersedes the conference Table II/III numbers, which were confounded by mismatched budgets.",
+  "config": {
+    "seeds": [
+      42,
+      7,
+      123,
+      2024,
+      31415
+    ],
+    "epochs": 150,
+    "patience": 20,
+    "lr": 0.001,
+    "weight_decay": 0.0001,
+    "lambda_bbox": 2.0,
+    "lambda_e1": 0.3,
+    "lambda_e2": 0.4
+  },
+  "results": {
+    "final": {
+      "summary": {
+        "test_map50": {
+          "mean": 56.64156198501587,
+          "std": 2.4414142371210934
+        },
+        "test_map75": {
+          "mean": 18.325354158878326,
+          "std": 2.6657003951587797
+        },
+        "test_map50_95": {
+          "mean": 25.179397761821747,
+          "std": 2.083976501314467
+        },
+        "test_precision": {
+          "mean": 94.03090287379091,
+          "std": 1.5053079274267094
+        },
+        "test_recall": {
+          "mean": 96.32911389356674,
+          "std": 2.536387962426954
+        },
+        "test_f1": {
+          "mean": 95.14434722197498,
+          "std": 1.5068837826340407
+        },
+        "test_mean_iou": {
+          "mean": 62.53339095858636,
+          "std": 1.4503078914883807
+        },
+        "best_val_map50": {
+          "mean": 64.93187427520752,
+          "std": 2.183685065471948
+        }
+      },
+      "n_params": 1517031,
+      "flops": "423.055M"
+    },
+    "cbam": {
+      "summary": {
+        "test_map50": {
+          "mean": 60.6961452960968,
+          "std": 2.9805492390973582
+        },
+        "test_map75": {
+          "mean": 23.880942463874817,
+          "std": 2.292345819375104
+        },
+        "test_map50_95": {
+          "mean": 28.926294445991516,
+          "std": 1.668868288717735
+        },
+        "test_precision": {
+          "mean": 96.7879658287605,
+          "std": 0.8938435087968319
+        },
+        "test_recall": {
+          "mean": 87.27848098503844,
+          "std": 8.854880506200374
+        },
+        "test_f1": {
+          "mean": 91.50807592000436,
+          "std": 4.702159848575441
+        },
+        "test_mean_iou": {
+          "mean": 66.4272151036496,
+          "std": 0.8788907310366418
+        },
+        "best_val_map50": {
+          "mean": 65.11059403419495,
+          "std": 2.818409372134917
+        }
+      },
+      "n_params": 1543023,
+      "flops": "423.646M"
+    }
+  }
+}
