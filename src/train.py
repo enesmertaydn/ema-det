@@ -75,6 +75,10 @@ class Config:
     lambda_e1:   float = 0.3
     lambda_e2:   float = 0.4
 
+    use_spatial_bbox: bool = True   # default architecture (see EMADet's docstring):
+                                     # bbox head reads the pre-GAP 256x4x4 feature map.
+                                     # False reproduces the legacy (pre-ablation) head.
+
     warmup_epochs: int = 5
     patience:      int = 20
     min_delta:     float = 1e-4
@@ -329,11 +333,11 @@ def evaluate(model: nn.Module, data_dir: str, device: torch.device, img_size: in
 # SINGLE-SEED / SINGLE-CONFIG TRAINING
 # ==============================================================================
 def train_one_run(seed: int, use_attention: bool, cfg: Config, device: torch.device) -> Tuple[nn.Module, Dict]:
-    tag = "cbam" if use_attention else "final"
+    tag = ("cbam" if use_attention else "final") + ("_legacygapbbox" if not cfg.use_spatial_bbox else "")
     print(f"\n{'='*70}\n  config={tag}  seed={seed}\n{'='*70}")
 
     set_seed(seed)
-    model = EMADet(use_attention=use_attention).to(device)
+    model = EMADet(use_attention=use_attention, use_spatial_bbox=cfg.use_spatial_bbox).to(device)
 
     flops_str, params_str, n_params = measure_complexity(model, device, cfg.img_size)
     print(f"  Params: {params_str} ({n_params:,})   FLOPs: {flops_str}")
@@ -451,7 +455,7 @@ def run_controlled_comparison(cfg: Config, configs_to_run: List[bool]) -> Dict:
     all_results = {}
 
     for use_attention in configs_to_run:
-        tag = "cbam" if use_attention else "final"
+        tag = ("cbam" if use_attention else "final") + ("_legacygapbbox" if not cfg.use_spatial_bbox else "")
         per_seed, best_map50, best_state = [], -1.0, None
 
         for seed in cfg.seeds:
@@ -472,7 +476,8 @@ def run_controlled_comparison(cfg: Config, configs_to_run: List[bool]) -> Dict:
                              "n_params": per_seed[0]["n_params"], "flops": per_seed[0]["flops"]}
         print_summary(tag, summary)
 
-    out_path = os.path.join(cfg.save_dir, "controlled_comparison.json")
+    out_name = "controlled_comparison" + ("_legacygapbbox" if not cfg.use_spatial_bbox else "") + ".json"
+    out_path = os.path.join(cfg.save_dir, out_name)
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump({
             "note": ("Both configs trained under identical N={}-seed / {}-epoch / "
@@ -515,8 +520,10 @@ class _Gate2Wrapper(nn.Module):
 class _MainWrapper(nn.Module):
     def __init__(self, m): super().__init__(); self.m = m
     def forward(self, x):
-        feat = self.m._gate2_to_head(x)
-        return torch.cat([self.m.cls_head(feat), self.m.bbox_head(feat)], dim=1)
+        feat_map = self.m._gate2_to_feature_map(x)
+        pooled = self.m._pool_and_dropout(feat_map)
+        bbox_input = feat_map if self.m.use_spatial_bbox else pooled
+        return torch.cat([self.m.cls_head(pooled), self.m.bbox_head(bbox_input)], dim=1)
 
 
 def measure_block_flops(model: nn.Module, device: torch.device, img_size: int = 128) -> Tuple[float, float, float]:
@@ -610,6 +617,9 @@ def main():
     parser.add_argument("--seeds", default=None, help="comma-separated, e.g. 42,7,123,2024,31415")
     parser.add_argument("--only", choices=["final", "cbam", "both"], default="both")
     parser.add_argument("--quick", action="store_true", help="smoke test: 1 seed, 2 epochs")
+    parser.add_argument("--legacy_gap_bbox", action="store_true",
+                        help="reproduce the pre-ablation architecture (bbox head on the "
+                             "GAP-pooled vector) instead of the default spatial bbox head")
     args = parser.parse_args()
 
     cfg = Config()
@@ -618,6 +628,7 @@ def main():
     if args.epochs: cfg.epochs = args.epochs
     if args.patience: cfg.patience = args.patience
     if args.seeds: cfg.seeds = [int(s) for s in args.seeds.split(",")]
+    cfg.use_spatial_bbox = not args.legacy_gap_bbox
 
     if args.quick:
         cfg.epochs, cfg.patience, cfg.seeds = 2, 1, [42]
@@ -631,11 +642,14 @@ def main():
     results = run_controlled_comparison(cfg, configs_to_run)
 
     if False in configs_to_run:
-        best_final = EMADet(use_attention=False).to(torch.device(cfg.device))
-        best_final.load_state_dict(torch.load(results["final"]["best_ckpt"], map_location=cfg.device))
+        final_tag = "final" + ("_legacygapbbox" if not cfg.use_spatial_bbox else "")
+        best_final = EMADet(use_attention=False, use_spatial_bbox=cfg.use_spatial_bbox).to(torch.device(cfg.device))
+        best_final.load_state_dict(torch.load(results[final_tag]["best_ckpt"], map_location=cfg.device))
         ee_rows = analyze_early_exit_table(best_final, cfg)
         print_early_exit_table(ee_rows)
-        with open(os.path.join(cfg.save_dir, "early_exit_table.json"), "w", encoding="utf-8") as f:
+        ee_suffix = "_legacygapbbox" if not cfg.use_spatial_bbox else ""
+        ee_path = os.path.join(cfg.save_dir, f"early_exit_table{ee_suffix}.json")
+        with open(ee_path, "w", encoding="utf-8") as f:
             json.dump(ee_rows, f, indent=2)
 
 

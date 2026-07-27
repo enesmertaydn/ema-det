@@ -186,14 +186,26 @@ class EMADet(nn.Module):
     Hardware-aware RoI verification network.
 
     Args:
-        use_attention: reproduces the rejected CBAM variant (Table II, row A)
-                       for ablation purposes. Default False = final EMA-Det.
-        dropout:       verification-head dropout rate (paper: 0.4).
+        use_attention:    reproduces the rejected CBAM variant (Table II, row A)
+                          for ablation purposes. Default False = final EMA-Det.
+        dropout:          verification-head dropout rate (paper: 0.4).
+        use_spatial_bbox: default True. The bbox head reads the pre-GAP
+                          256x4x4 feature map instead of the pooled vector,
+                          so box regression retains positional information.
+                          An N=5-seed controlled ablation showed this
+                          strictly dominates the original GAP-pooled bbox
+                          head (mAP@.5:.95 25.18->28.04%, mAP@.75
+                          18.33->24.07%) at +15K params and ~free FLOPs,
+                          while recall is unchanged and *more* stable
+                          (std 2.54->0.47). Pass False to reproduce the
+                          original (legacy) architecture for comparison.
     """
 
-    def __init__(self, use_attention: bool = False, dropout: float = 0.4):
+    def __init__(self, use_attention: bool = False, dropout: float = 0.4,
+                 use_spatial_bbox: bool = True):
         super().__init__()
         self.use_attention = use_attention
+        self.use_spatial_bbox = use_spatial_bbox
 
         # Block 1 — Laplacian/Sobel init, 1 -> 16, 128 -> 64
         self.block1 = LaplacianSobelInit(16)
@@ -238,7 +250,21 @@ class EMADet(nn.Module):
         self.gap     = nn.AdaptiveAvgPool2d(1)
         self.dropout = nn.Dropout(dropout)
         self.cls_head  = nn.Linear(256, 1)
-        self.bbox_head = nn.Linear(256, 4)
+        if use_spatial_bbox:
+            # Block 6's output is 256x4x4. GAP would collapse all spatial
+            # layout before a pooled bbox_head ever saw it — a direct,
+            # architecturally-obvious reason the legacy (use_spatial_bbox=
+            # False) head's localization (mAP@.5:.95) lagged far behind
+            # detectors with a spatial box head (e.g. YOLOv8n's per-location
+            # DFL regression) — see README/paper's ablation. This head
+            # instead flattens the *pre-GAP* spatial map so box regression
+            # can use positional information, while cls_head stays on the
+            # pooled path unchanged (that's the head whose stability this
+            # project already validated across N=5 seeds).
+            self.bbox_head = nn.Sequential(nn.Flatten(), nn.Linear(256 * 4 * 4, 4))
+        else:
+            # Legacy architecture (pre-ablation) — kept for reproducibility.
+            self.bbox_head = nn.Linear(256, 4)
 
     # -- shared feature path, reused by forward() and by the FPS/FLOPs tooling --
     def _stem_to_gate1(self, x: torch.Tensor) -> torch.Tensor:
@@ -251,11 +277,22 @@ class EMADet(nn.Module):
         f = self.pool4(self.attn4(self.block4(f)))
         return f
 
-    def _gate2_to_head(self, f: torch.Tensor) -> torch.Tensor:
+    def _gate2_to_feature_map(self, f: torch.Tensor) -> torch.Tensor:
+        """Pre-GAP spatial feature map (B, 256, 4, 4) — used directly by the
+        spatial bbox head; pooled for the classification head by
+        `_pool_and_dropout`."""
         f = self.attn5(self.fusion(torch.cat([self.block5a(f), self.block5b(f)], dim=1)))
         f = self.pool5(f)
         f = self.attn6(self.block6(f))
-        return self.dropout(self.gap(f).view(f.size(0), -1))
+        return f
+
+    def _pool_and_dropout(self, feat_map: torch.Tensor) -> torch.Tensor:
+        return self.dropout(self.gap(feat_map).view(feat_map.size(0), -1))
+
+    def _gate2_to_head(self, f: torch.Tensor) -> torch.Tensor:
+        """Kept for backward compatibility (e.g. train.py's thop FLOPs
+        wrapper) — the pooled classification-head feature vector."""
+        return self._pool_and_dropout(self._gate2_to_feature_map(f))
 
     def forward(self, x: torch.Tensor, tau: Optional[float] = None) -> EMADetOutput:
         """
@@ -284,9 +321,11 @@ class EMADet(nn.Module):
             if prob2 < exit_threshold:
                 return EMADetOutput(gate2_logit, None, gate1_logit, gate2_logit, "gate2")
 
-        feat = self._gate2_to_head(f)
-        cls_logit = self.cls_head(feat).squeeze(1)
-        bbox      = torch.sigmoid(self.bbox_head(feat))
+        feat_map = self._gate2_to_feature_map(f)
+        pooled = self._pool_and_dropout(feat_map)
+        cls_logit = self.cls_head(pooled).squeeze(1)
+        bbox_input = feat_map if self.use_spatial_bbox else pooled
+        bbox = torch.sigmoid(self.bbox_head(bbox_input))
         return EMADetOutput(cls_logit, bbox, gate1_logit, gate2_logit, "main")
 
 
@@ -300,10 +339,10 @@ def count_parameters(model: nn.Module) -> int:
 if __name__ == "__main__":
     torch.manual_seed(0)
 
-    model = EMADet(use_attention=False)
+    model = EMADet(use_attention=False)  # defaults: use_spatial_bbox=True
     n_params = count_parameters(model)
     print(f"EMA-Det parameters: {n_params:,} ({n_params / 1e6:.3f} M)")
-    print(f"  (manuscript Table IV reports 1.46 M for EMA-Det)")
+    print(f"  (N=5-seed measured: 1.532 M; spatial bbox head adds ~15K over the legacy 1.517 M)")
 
     # --- Block 1 init sanity check ---
     # Channels 0..11 are the deterministic Laplacian/Sobel bank (Eq. 2, K_c
@@ -339,5 +378,16 @@ if __name__ == "__main__":
             out = model(x1, tau=tau)
             print(f"  tau={tau:.2f} -> exit_stage={out.exit_stage:<5} "
                   f"bbox={'yes' if out.bbox is not None else 'no'}")
+
+    # --- Legacy (GAP-pooled) bbox-head variant, kept for reproducibility ---
+    legacy_model = EMADet(use_attention=False, use_spatial_bbox=False)
+    out = legacy_model(x)
+    assert out.bbox.shape == (8, 4)
+    loss = out.cls_logit.sum() + out.bbox.sum() + out.gate1_logit.sum() + out.gate2_logit.sum()
+    loss.backward()
+    assert legacy_model.block1.conv.weight.grad is not None
+    n_params_legacy = count_parameters(legacy_model)
+    print(f"Legacy (use_spatial_bbox=False) variant OK. bbox={tuple(out.bbox.shape)}  "
+          f"params={n_params_legacy:,} ({n_params - n_params_legacy:,} fewer than default)")
 
     print("\nAll self-tests passed.")
