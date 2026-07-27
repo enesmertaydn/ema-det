@@ -1,0 +1,10 @@
+torch>=2.0
+torchvision>=0.15
+opencv-python>=4.8
+numpy>=1.26
+tqdm>=4.65
+thop>=0.1.1
+torchmetrics>=1.0
+matplotlib>=3.7
+onnx>=1.15
+onnxruntime>=1.16

@@ -1,0 +1,19 @@
+# Data & large artifacts (not committed — see README for reproduction steps)
+data/
+results/*.pt
+results/*.log
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
