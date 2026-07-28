@@ -61,21 +61,28 @@ ROW_LOOP:
             CH_LOOP:
                 for (int oc = 0; oc < B1_COUT; oc++) {
 #pragma HLS UNROLL
-                    FixedT acc = FixedT(BLOCK1_B[oc]);
+                    // Accumulate in the wider AccT, not FixedT: truncating
+                    // the running sum back to FixedT's 16,6 after each of
+                    // the 9 terms (as an earlier version of this file did)
+                    // measurably lost accuracy -- see hls_types.h's status
+                    // note. Only the final result is cast down to FixedT.
+                    AccT acc = AccT(BLOCK1_B[oc]);
                 KY_LOOP:
                     for (int ky = 0; ky < B1_K; ky++) {
                     KX_LOOP:
                         for (int kx = 0; kx < B1_K; kx++) {
                             int ix = ox + kx - 1;  // pad=1, matching conv2d_same
                             if (ix >= 0 && ix < B1_W) {
-                                acc += line_buf[ky][ix] * FixedT(BLOCK1_W[oc][0][ky][kx]);
+                                acc += AccT(line_buf[ky][ix]) * AccT(BLOCK1_W[oc][0][ky][kx]);
                             }
                         }
                     }
                     // LeakyReLU(0.1) -- BatchNorm is already folded into
                     // BLOCK1_W/BLOCK1_B by export_hls_weights.py, matching
                     // LaplacianSobelInit.forward()'s Conv->BN->LeakyReLU.
-                    px.ch[oc] = (acc > FixedT(0)) ? acc : FixedT(acc * FixedT(0.1));
+                    // Cast to FixedT happens here, once, not per MAC term.
+                    FixedT result = FixedT((acc > AccT(0)) ? acc : AccT(acc * AccT(0.1)));
+                    px.ch[oc] = result;
                 }
                 out_stream.write(px);
             }
