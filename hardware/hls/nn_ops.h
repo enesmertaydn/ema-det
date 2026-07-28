@@ -32,6 +32,12 @@ CONV_OX:
                 // truncating the running sum back to FixedT after every
                 // MAC term measurably loses accuracy (see hls_types.h's
                 // status note, block1_streaming.cpp had the same bug).
+                // Multiply at native FixedT width (cheap, DSP-sized) and
+                // widen only the *product* to AccT before adding --
+                // pre-widening both operands to AccT synthesizes a much
+                // more expensive multiplier per tap (measured on
+                // block1_streaming_forward: DSP 138% of budget until this
+                // fix).
                 AccT acc = AccT(bias[oc]);
             CONV_IC:
                 for (int ic = 0; ic < Cin; ic++) {
@@ -42,7 +48,7 @@ CONV_OX:
                             int iy = oy + ky - pad;
                             int ix = ox + kx - pad;
                             if (iy >= 0 && iy < H && ix >= 0 && ix < W) {
-                                acc += AccT(in[ic][iy][ix]) * AccT(weight[oc][ic][ky][kx]);
+                                acc += AccT(in[ic][iy][ix] * weight[oc][ic][ky][kx]);
                             }
                         }
                     }
@@ -64,9 +70,9 @@ void conv1x1(const FixedT in[Cin][H][W],
         for (int oy = 0; oy < H; oy++) {
             for (int ox = 0; ox < W; ox++) {
 #pragma HLS PIPELINE II=1
-                AccT acc = AccT(bias[oc]);  // see conv2d_same's comment on AccT
+                AccT acc = AccT(bias[oc]);  // see conv2d_same's comments on AccT
                 for (int ic = 0; ic < Cin; ic++) {
-                    acc += AccT(in[ic][oy][ox]) * AccT(weight[oc][ic][0][0]);
+                    acc += AccT(in[ic][oy][ox] * weight[oc][ic][0][0]);
                 }
                 out[oc][oy][ox] = FixedT(acc);
             }
@@ -133,9 +139,9 @@ void fully_connected(const FixedT in[Cin], const FixedT weight[Cout][Cin],
                       const FixedT bias[Cout], FixedT out[Cout]) {
     for (int oc = 0; oc < Cout; oc++) {
 #pragma HLS PIPELINE II=1
-        AccT acc = AccT(bias[oc]);  // see conv2d_same's comment on AccT
+        AccT acc = AccT(bias[oc]);  // see conv2d_same's comments on AccT
         for (int ic = 0; ic < Cin; ic++)
-            acc += AccT(in[ic]) * AccT(weight[oc][ic]);
+            acc += AccT(in[ic] * weight[oc][ic]);
         out[oc] = FixedT(acc);
     }
 }

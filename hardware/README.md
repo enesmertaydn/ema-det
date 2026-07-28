@@ -61,24 +61,45 @@ test_000001  max|diff|=3.3826e-06  mismatches=0/262144  OK
 CSim done with 0 errors.
 ```
 `ema_det_gates.cpp`/`main_tb.cpp` (the flat, non-streaming translation
-covering Gate1+Gate2 end-to-end) has not yet been run the same way — do
-that next for full-network float coverage, then move to C synthesis
-below for `block1_streaming_forward`.
+covering Gate1+Gate2 end-to-end) has not yet been run the same way.
+
+**Synthesis, iteration 1 (float, `HLS_TARGET` not defined — a config
+mistake, not the intended target representation):** BRAM_18K 12/280 (4%),
+but DSP 784/220 (**356%**) and LUT 117654/53200 (**221%**) — both wildly
+over budget. Root cause: floating-point arithmetic is far more expensive
+in hardware than fixed-point; this was never meant to be the shipped
+representation.
+
+**Synthesis, iteration 2 (`-DHLS_TARGET` added, so `FixedT`=`ap_fixed<16,6>`):**
+Before that, C-sim caught a real accumulation-precision bug (accumulating
+a MAC sum directly in FixedT rather than a wider `AccT` lost real
+accuracy — see `hls_types.h`'s status note) — fixed, then measured
+max|diff| ~1.26e-2/1.11e-2 (real input-quantization noise, not a further
+bug; `block1_streaming_tb.cpp`'s tolerance was re-derived to 2e-2 from
+this measurement). Resulting synthesis: **BRAM_18K 0/280 (0%)** — the
+line-buffer restructuring fully eliminated Block1's BRAM problem — **LUT
+28002/53200 (52%)**, comfortably under budget, but **DSP 304/220 (138%)**
+still over. Root cause found: multiplying two pre-widened `AccT`
+(32-bit) operands synthesizes a far more expensive multiplier per tap
+than multiplying at native `FixedT` (16-bit) width and only widening the
+*product* before accumulating. Fixed in `block1_streaming.cpp` and the
+same pattern in `nn_ops.h` (`conv2d_same`, `conv1x1`, `fully_connected`) —
+not yet re-synthesized to confirm.
 
 ## What is explicitly NOT done yet, and must happen in this order
 
-1. ~~Compile and run `main_tb.cpp` / `block1_streaming_tb.cpp` in float~~ —
-   **done for `block1_streaming_forward`** (see above); `main_tb.cpp`
-   itself still needs its own C-simulation run.
-2. **Synthesize** (`csynth_design` / Vitis's "C SYNTHESIS > Run") — only
-   then do real LUT/BRAM/latency numbers exist. `hls_types.h`'s
-   `ap_fixed<16,6>` is still an unvalidated starting guess, not a chosen
-   operating point.
+1. ~~Compile and run in float~~ / ~~synthesize~~ — both done for
+   `block1_streaming_forward` (see above, two iterations); `main_tb.cpp`
+   (the flat Gate1+Gate2 translation) still needs its own run of either.
+2. **Re-run C-sim then C-synthesis** for `block1_streaming_forward` with
+   the native-width-multiply fix above, to confirm DSP drops under the
+   220 budget without reopening the BRAM/LUT wins.
 3. **C/RTL co-simulation** (`cosim_design` / "C/RTL COSIMULATION > Run")
-   against the same golden reference in fixed point — the float pass above
-   says nothing about whether `ap_fixed<16,6>` retains enough precision.
-4. Only after step 3 passes does it make sense to report resource usage,
-   power, or latency numbers in the paper.
+   against the same golden reference in fixed point — C-sim uses HLS's
+   own C++ compiler; cosim additionally validates the actual synthesized
+   RTL datapath, which C-sim alone does not.
+4. Only after step 3 passes does it make sense to report final resource
+   usage, power, or latency numbers in the paper.
 
 ## A known, unresolved design gap (not just "untested")
 

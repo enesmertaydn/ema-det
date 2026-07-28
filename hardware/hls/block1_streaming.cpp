@@ -73,7 +73,17 @@ ROW_LOOP:
                         for (int kx = 0; kx < B1_K; kx++) {
                             int ix = ox + kx - 1;  // pad=1, matching conv2d_same
                             if (ix >= 0 && ix < B1_W) {
-                                acc += AccT(line_buf[ky][ix]) * AccT(BLOCK1_W[oc][0][ky][kx]);
+                                // Multiply at native FixedT width (a single,
+                                // cheap DSP-sized multiply), widen only the
+                                // *product* to AccT before accumulating --
+                                // multiplying two already-AccT-widened
+                                // operands (as an earlier version did)
+                                // synthesized a much more expensive wide
+                                // multiplier per tap (measured: DSP 138% of
+                                // budget). Weight is quantized to FixedT
+                                // here too (weights.h stores it as float).
+                                FixedT w = FixedT(BLOCK1_W[oc][0][ky][kx]);
+                                acc += AccT(line_buf[ky][ix] * w);
                             }
                         }
                     }
