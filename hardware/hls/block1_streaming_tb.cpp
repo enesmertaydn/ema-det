@@ -42,19 +42,21 @@ static bool load_floats(const std::string &path, std::vector<float> &out, size_t
 }
 
 int main(int argc, char **argv) {
-    std::string dir = (argc > 1) ? argv[1] : "block1_ref";
+    // Defaults match this repo's fixed layout (Vitis's GUI C-simulation
+    // argument passing doesn't cleanly support multiple space-separated
+    // argv entries -- see hardware/README.md's Vitis 2025.2 notes), so no
+    // command-line arguments are required. Override argv[1]/argv[2:] if
+    // you need to point at a different reference dir or stem list.
+    std::string dir = (argc > 1) ? argv[1]
+        : "C:/Users/enesm/Desktop/emadet/emadetforspringer/hardware/hls/block1_ref";
 
-    // The two stems export_hls_weights.py dumped (test_imgs[:2], sorted
-    // .jpg filenames from the clean test split) -- pass different stems on
-    // the command line if that list has since changed.
     std::vector<std::string> stems;
     if (argc > 2) {
         for (int i = 2; i < argc; i++) stems.push_back(argv[i]);
     } else {
-        std::cerr << "Usage: " << argv[0] << " <block1_ref_dir> <stem1> [<stem2> ...]\n"
-                  << "  (stems are the .jpg filenames without extension, as printed by\n"
-                  << "   export_hls_weights.py -- e.g. ls " << dir << "/*_input.bin)\n";
-        return 1;
+        // The two stems export_hls_weights.py dumps by default
+        // (test_imgs[:2], sorted .jpg filenames from the clean test split).
+        stems = {"test_000000", "test_000001"};
     }
 
     const float tol = 1e-2f;
