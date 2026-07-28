@@ -92,7 +92,15 @@ $73.75\pm1.86\%$ — well below EMA-Det's $96.08\pm0.47\%$ — concretely
 illustrating this paper's central claim that mAP is the wrong optimization
 target for a second-stage verifier, since system-level recall
 $R_{\text{total}} = R_{\text{proposal}} \times R_{\text{verifier}}$ is
-gated by the weaker of the two factors.}
+gated by the weaker of the two factors. Finally, we evaluate cross-sensor
+generalization on the Anti-UAV410 thermal-IR benchmark: the EO-trained
+verifier transfers zero-shot with precision intact but recall falling from
+$96.08\pm0.47\%$ to $80.12$--$86.29\%$ and mAP@0.5 to $39.38$--$52.05\%$,
+while a thermal-from-scratch reference under the identical protocol
+reaches mAP@0.5 $89.52\pm0.93\%$ and recall $91.64\pm0.41\%$ — confirming
+the zero-shot gap is a genuine domain-shift effect rather than an
+architectural ceiling, and suggesting thermal-IR verification is, if
+anything, an easier task than EO at this resolution.}
 
 \keywords{UAV Detection, Edge Computing, Region Verification, Early-Exit, Hardware-Aware Design, Reproducibility}
 
@@ -152,7 +160,12 @@ version's ablation and main results tables were produced under different
 training budgets, which this version corrects. (5) We show that decoupling
 the bounding-box head from the pooled classification feature (Section~
 \ref{sec:spatialbbox}) not only improves localization on its own, but fully
-explains away CBAM's originally observed benefit.
+explains away CBAM's originally observed benefit. (6) We measure
+cross-sensor (EO$\to$thermal-IR) generalization on the Anti-UAV410
+benchmark (Section~\ref{sec:crosssensor}), both zero-shot and via a
+thermal-from-scratch reference under the same controlled protocol,
+quantifying a real but partial domain-shift gap rather than assuming or
+omitting a generalization claim.
 
 \section{EMA-Det: Architecture and Method}\label{sec:method}
 
