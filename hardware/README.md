@@ -120,6 +120,35 @@ not yet re-synthesized to confirm.
    run through any of steps 1-2 above at all -- Block1 is one restructured
    layer out of the whole network, not the whole story yet.
 
+## Why Block1's approach (full per-pixel parallelism) cannot just repeat for Block2+
+
+Block1's kernel fully unrolls every MAC (`#pragma HLS UNROLL` on
+`CH_LOOP`/`KY_LOOP`/`KX_LOOP`) so every output channel's every kernel tap
+is computed in parallel, one physical multiplier per MAC, pipelined at
+II=1. That cost 145 DSPs (out of 220 available) for Block1's
+$16\times1\times3\times3 = 144$ MACs/pixel. This does **not** scale to the
+rest of the network -- MACs/pixel grow with both channel counts (which
+increase every block) and depend on nothing about Block1's own small
+input-channel count:
+
+| Layer | Cout x Cin x K^2 | MACs/pixel | DSPs needed at Block1's 1-per-MAC strategy |
+|---|---|---|---|
+| Block1 | 16x1x9 | 144 | 145 (fits: chip has 220) |
+| Block2 (2nd conv) | 32x32x9 | 9,216 | ~42x the entire chip |
+| Block4 (2nd conv) | 128x128x9 | 147,456 | ~670x the entire chip |
+| Block6 (2nd conv) | 256x256x9 | 589,824 | ~2,680x the entire chip |
+
+So the fact that Block1 fit is a consequence of Block1 specifically
+having only 1 input channel, not evidence the same fully-parallel
+strategy generalizes. **Block2 onward need a fundamentally different HLS
+strategy**: a small, fixed-size, time-multiplexed MAC array (a systolic
+array / PE array reused over many cycles per output, trading latency for
+area) rather than one dedicated multiplier per MAC. This is exactly what
+`Bitirme/project_v2/systolic_array_core/npu.cpp` (the 8x8 INT8 systolic
+array found earlier in this project) is a building block for, and is
+real, unstarted design work -- not yet attempted for any layer past
+Block1.
+
 ## A known, unresolved design gap (not just "untested")
 
 The current kernel allocates one full-size `static` buffer per layer. This
