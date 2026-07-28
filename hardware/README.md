@@ -45,20 +45,39 @@ this README's "still needed" list is a real gap, not a formality.
   scripting rather than this exact Tcl script — expect to adapt this step
   once inside the actual 2025.2 IDE.
 
-## What is explicitly NOT done, and must happen in this order
+## Status update: Block1's streaming kernel has passed real C-simulation
 
-1. **Compile and run `main_tb.cpp` in float** (`HLS_TARGET` undefined) on a
-   machine with a C++ compiler. This is the first real correctness check —
-   until it passes, nothing downstream should be trusted.
-2. **C-simulate under Vitis/Vivado HLS** (`csim_design` in `run_hls.tcl`) —
-   same check, but through the HLS tool's own simulator.
-3. **Synthesize** (`csynth_design`) — only then do LUT/BRAM/latency numbers
-   exist at all. `hls_types.h`'s `ap_fixed<16,6>` is an unvalidated starting
-   guess, not a chosen operating point.
-4. **C/RTL co-simulation** (`cosim_design`) against `reference_io.csv` in
-   fixed point — the float translation passing (step 1) says nothing about
-   whether `ap_fixed<16,6>` retains enough precision.
-5. Only after step 4 passes does it make sense to report resource usage,
+**2026-07-28, Vitis Unified IDE 2025.2, Zynq-7020 (`xc7z020clg484-1`),
+10ns clock target:** `block1_streaming_forward`'s C-simulation (float
+build, HLS's own `clang-16`) passed against the real PyTorch golden
+reference for both test images — `max|diff| = 3.3e-06` /
+`3.4e-06` (float rounding noise), `0 / 262144` mismatches per image. This
+is the first real, tool-verified result in this project — not a static
+estimate. Log excerpt:
+```
+test_000000  max|diff|=3.3081e-06  mismatches=0/262144  OK
+test_000001  max|diff|=3.3826e-06  mismatches=0/262144  OK
+2 / 2 images passed (tol=1e-02)
+CSim done with 0 errors.
+```
+`ema_det_gates.cpp`/`main_tb.cpp` (the flat, non-streaming translation
+covering Gate1+Gate2 end-to-end) has not yet been run the same way — do
+that next for full-network float coverage, then move to C synthesis
+below for `block1_streaming_forward`.
+
+## What is explicitly NOT done yet, and must happen in this order
+
+1. ~~Compile and run `main_tb.cpp` / `block1_streaming_tb.cpp` in float~~ —
+   **done for `block1_streaming_forward`** (see above); `main_tb.cpp`
+   itself still needs its own C-simulation run.
+2. **Synthesize** (`csynth_design` / Vitis's "C SYNTHESIS > Run") — only
+   then do real LUT/BRAM/latency numbers exist. `hls_types.h`'s
+   `ap_fixed<16,6>` is still an unvalidated starting guess, not a chosen
+   operating point.
+3. **C/RTL co-simulation** (`cosim_design` / "C/RTL COSIMULATION > Run")
+   against the same golden reference in fixed point — the float pass above
+   says nothing about whether `ap_fixed<16,6>` retains enough precision.
+4. Only after step 3 passes does it make sense to report resource usage,
    power, or latency numbers in the paper.
 
 ## A known, unresolved design gap (not just "untested")
