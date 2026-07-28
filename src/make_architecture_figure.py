@@ -7,7 +7,7 @@ matplotlib.use("Agg")
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 
-OUT_PATH = r"C:\Users\enesm\Desktop\emadet\emadetforspringer\paper\figures\architecture.png"
+OUT_PATH = r"C:\Users\enesm\Desktop\emadet\emadetforspringer\paper\architecture.png"
 
 MAIN_X, MAIN_W = 2.5, 5.0
 BOX_H = 1.0

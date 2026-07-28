@@ -12,7 +12,18 @@ independently re-checked.
 - Architecture description, loss function, corrected hyperparameters
   (weight_decay, lambda_bbox — both corrected from the conference draft's
   stated values to the code-verified ones), and Fig. 1 (generated from the
-  actual implementation, see `figures/architecture.png`).
+  actual implementation, see `architecture.png`).
+
+**Submission file layout:** Springer's authoring template (`user-manual.pdf`
+in `sn-template/`) explicitly says not to put image files in subfolders —
+"the manuscript submission system will be unable to find them." Both
+figures (`architecture.png`, `pr_curve.png`) live directly in `paper/`,
+next to `main.tex`, not in a `figures/` subfolder (this was wrong in an
+earlier draft and has been fixed). `pr_curve.png` is a manual copy of
+`results/pr_curve.png` — re-copy it here if you re-run `src/pr_curve.py`
+and the plot changes. `architecture.png` is written directly to this flat
+location by `src/make_architecture_figure.py`, so re-running that script
+needs no extra copy step.
 - **Spatial bbox head ablation** (Section on `sec:spatialbbox`, new this
   round): decoupling the box head from the pooled classification feature so
   it reads the pre-GAP 256x4x4 map instead strictly improved every tracked
