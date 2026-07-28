@@ -25,6 +25,13 @@ paper/sn-template/
 *.rpt
 vivado*.log
 
+# Vitis Unified IDE HLS component workspaces (large generated build trees,
+# created outside this repo's own version control -- e.g. hardware/block1_streaming/)
+hardware/*_streaming/
+hardware/*_component/
+hardware/hls_component/
+hardware/_ide/
+
 # Python
 __pycache__/
 *.pyc
