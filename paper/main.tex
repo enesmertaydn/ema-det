@@ -27,9 +27,13 @@
 %     and a thermal-from-scratch N=5-seed reference trained
 %     (results/thermal/controlled_comparison.json) -- both real, both
 %     written up in sec:crosssensor.
-%   - Section "Hardware Validation": FPGA synthesis has not been run (no
-%     Vivado/Vitis HLS toolchain, no C++ toolchain either, in the dev
-%     environment) — written to describe only what is actually true.
+%   - Section "Hardware Validation": Block 1 has been synthesized for real
+%     (Vitis Unified IDE 2025.2, Zynq-7020 xc7z020clg484-1) -- both float
+%     and ap_fixed<16,6> resource utilization tables are real csynth
+%     numbers, not estimates. Block 2 onward still need a time-multiplexed
+%     MAC-array redesign (quantified but unstarted) and C/RTL cosimulation
+%     for Block 1 itself is still outstanding -- written to describe only
+%     what is actually true and actually done so far.
 %   - Declarations section below (Funding, Conflict of interest, Ethics,
 %     Consent for publication): filled with placeholders the author must
 %     confirm or correct -- see inline comments at that section.
@@ -506,25 +510,72 @@ versus the legacy head's earlier-measured 465.0 FPS (final) / 262.6 FPS
 (CBAM) — worth noting honestly alongside the accuracy gain, not just the
 gain alone.
 
-A literal C++ translation of the Block1$\to$Gate1$\to$Block4$\to$Gate2
-path, using the actual trained (BatchNorm-folded) weights and a testbench
-validating it against PyTorch reference outputs on real test images, has
-been prepared for Vivado/Vitis HLS synthesis targeting a Zynq-7020 (see
-\texttt{hardware/}). \textbf{It has not been compiled, simulated, or
-synthesized} — this development environment has no C/C++ toolchain and no
-Vivado/Vitis HLS installation. LUT, BRAM, latency, and power figures
-require running the prepared \texttt{run\_hls.tcl} flow on a machine with
-the toolchain, plus resolving a known design gap: a static
-element-count$\times$bit-width tally of the current kernel's per-layer
-buffers (\texttt{src/estimate\_hls\_bram.py}, not a synthesis result) sums
-to 1688~KB at the working \texttt{ap\_fixed<16,6>} precision against the
-Zynq-7020's 630~KB total BRAM ($2.68\times$ over budget), with
-Block~1/Block~2 alone accounting for 60.7\% of that total —
-prioritizing an AXI4-Stream/line-buffer restructuring of those two blocks
-first is informed by this arithmetic, though the real fix must still be
-driven by actual \texttt{csynth} resource reports rather than estimated in
-advance. We report this status transparently rather than presenting
-placeholder numbers as measurements.
+A literal, per-layer C++ translation of the full
+Block1$\to$Gate1$\to$Block4$\to$Gate2 path, using the actual trained
+(BatchNorm-folded) weights and a testbench validating it against PyTorch
+reference outputs on real test images, is provided in \texttt{hardware/}.
+This flat translation allocates one full-size buffer per layer; a static
+element-count$\times$bit-width tally (\texttt{src/estimate\_hls\_bram.py},
+not a synthesis result) put its total at 1688~KB against the target
+Zynq-7020's 630~KB BRAM budget ($2.68\times$ over), with Block~1 alone
+accounting for 30.3\% of that total — the single largest offender.
+
+\textbf{Block~1 has since been restructured and synthesized for real} on
+Vitis Unified IDE 2025.2 (Zynq-7020, part \texttt{xc7z020clg484-1}, 10~ns
+clock target), replacing its full-frame buffer with a 3-row line buffer
+(768~B). C-simulation against the real PyTorch \texttt{Block1} output
+(post-LeakyReLU, two test images, all $16\times128\times128$ values each)
+passed in both representations: max$|$diff$|=3.3\times10^{-6}$ in
+\texttt{float} (rounding noise) and $1.48\times10^{-2}$ in the target
+\texttt{ap\_fixed<16,6>} fixed-point representation (input-activation
+quantization noise on $[0,1]$-range pixels — not an accumulation bug;
+weights and the MAC accumulator use a wider intermediate type,
+\texttt{ap\_fixed<32,12>}, precisely to avoid one). Table~\ref{tab:block1synth}
+reports the resulting resource utilization for \emph{both}
+representations, since the contrast is itself informative: the
+unquantized \texttt{float} build already fits the BRAM budget (line
+buffering alone fixes that) but overshoots DSP and LUT by more than
+$3\times$ and $2\times$ respectively — floating-point arithmetic is
+simply far more expensive in hardware than fixed-point, independent of
+buffering strategy. Quantizing to \texttt{ap\_fixed<16,6>} (and,
+separately, multiplying at native 16-bit width rather than in the wider
+accumulator type — an earlier attempt that multiplied pre-widened
+operands cost $2.1\times$ more DSPs for no accuracy benefit) brings every
+resource under budget, with $37\%$ DSP headroom remaining.
+
+\begin{table*}[t]
+\caption{Block~1 (line-buffered streaming kernel) resource utilization, Vitis HLS 2025.2, Zynq-7020 (\texttt{xc7z020clg484-1}), 10~ns clock target. \% column is utilization against the part's total budget.}\label{tab:block1synth}
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{lccccccccc}
+\toprule
+Representation & BRAM\_18K & \% & DSP & \% & FF & \% & LUT & \% & Fmax \\
+\midrule
+Float (unquantized, \texttt{HLS\_TARGET} undefined) & 12 & 4\% & 784 & \textbf{356\%} & 73{,}950 & 69\% & 117{,}654 & \textbf{221\%} & 137.8~MHz \\
+Fixed-point (\texttt{ap\_fixed<16,6>}, quantized \& optimized) & 0 & 0\% & 145 & 65\% & 10{,}700 & 10\% & 13{,}876 & 26\% & 137.3~MHz \\
+\botrule
+\end{tabular}}
+\end{table*}
+
+This is a real, tool-verified result for one layer, not an estimate —
+but it covers only Block~1 (one of six blocks plus two gates), and its
+approach does not simply repeat for the rest of the network. Block~1's
+kernel fully unrolls every MAC (one physical multiplier per
+multiply-accumulate, pipelined at II$=1$), which cost 145 DSPs for its
+$16\times1\times3\times3=144$ MACs/pixel — affordable only because
+Block~1 has just one input channel. MACs/pixel grow with channel depth at
+every subsequent layer: Block~2's second conv already needs
+$32\times32\times9=9{,}216$ MACs/pixel ($\sim$42$\times$ the entire
+chip's DSP budget at the same one-per-MAC strategy), and Block~6's second
+conv needs $256\times256\times9=589{,}824$ ($\sim$2{,}680$\times$). Block~2
+onward therefore require a fundamentally different structure — a small,
+fixed-size, time-multiplexed MAC array (a systolic/PE-array design reused
+over many cycles per output, trading latency for area) rather than full
+unrolling — which has not yet been designed for any layer past Block~1.
+C/RTL co-simulation (validating the actual synthesized RTL, not just
+HLS's own C-simulation) for Block~1 is also still outstanding. We report
+this status transparently: one layer's line-buffer restructuring is
+fully verified end-to-end, the rest of the network's hardware mapping is
+identified, quantified, and unsolved, not silently assumed to generalize.
 
 \subsection{Cross-Sensor Generalization}\label{sec:crosssensor}
 
@@ -616,8 +667,12 @@ thermal-from-scratch reference; both are single-dataset (Anti-UAV410)
 results, and no attempt at domain adaptation or multi-sensor joint
 training was made — a natural next step given the from-scratch result
 shows a well-trained verifier reaches high accuracy on thermal data.
-\item \textbf{Hardware validation.} See Section~\ref{sec:hardware} — FPGA
-synthesis is prepared but not executed in this draft.
+\item \textbf{Hardware validation.} See Section~\ref{sec:hardware} — Block~1
+has been synthesized and verified (both float and \texttt{ap\_fixed<16,6>})
+against real Zynq-7020 resource budgets, but this covers one layer of six
+plus two gates; C/RTL co-simulation for Block~1 and any synthesis of
+Block~2 onward (which needs a different, time-multiplexed hardware
+structure, Section~\ref{sec:hardware}) remain future work.
 \end{itemize}
 
 \section{Conclusion}\label{sec:conclusion}

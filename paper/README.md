@@ -71,10 +71,24 @@ needs no extra copy step.
   cited in `sec:leakage` and the Declarations/Data-availability bullet;
   `refs.bib` has zero unused entries.
 
+## Hardware section updated with real Block 1 synthesis results
+
+`sec:hardware` now reports real Vitis HLS 2025.2 csynth numbers for
+Block 1's line-buffered streaming kernel (Zynq-7020,
+`xc7z020clg484-1`), for both float (unquantized) and `ap_fixed<16,6>`
+(quantized) representations — see `hardware/README.md` for the full
+iteration history (the float build overshoots DSP/LUT budget by
+3-2x purely from floating-point arithmetic cost; the fixed-point build
+fits every resource). This covers only Block 1; Block 2 onward need a
+time-multiplexed MAC-array redesign (quantified in `sec:hardware` — MACs
+per pixel grow 42x to ~2,680x across the network's remaining layers) that
+has not been designed, and C/RTL co-simulation for Block 1 itself is
+still outstanding.
+
 ## What's NOT in this draft, on purpose
 
-- No FPGA synthesis numbers (LUT/BRAM/latency/power) — not measured, see
-  `hardware/README.md`.
+- Full-network FPGA synthesis (Block 2 onward) — see above, this is
+  identified and quantified but not yet designed, let alone measured.
 
 ## Before submission (not done here)
 
