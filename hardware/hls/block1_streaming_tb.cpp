@@ -16,6 +16,8 @@
 // against PyTorch's model.block1(x) output, tolerance chosen the same way
 // as main_tb.cpp's (loose for the float build; re-derive for ap_fixed<16,6>
 // once that build exists).
+#include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>

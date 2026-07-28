@@ -14,6 +14,7 @@
 // matching ema_det.py's DroneDetectDataset preprocessing exactly) and
 // compares this C++ translation's Gate1/Gate2 logits against the PyTorch
 // reference values in reference_io.csv.
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <fstream>
