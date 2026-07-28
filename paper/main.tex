@@ -35,7 +35,7 @@
 %     confirm or correct -- see inline comments at that section.
 %   - Author ORCID (optional but recommended by Springer) not added.
 
-\documentclass[pdflatex,sn-mathphys-num]{sn-jnl}% Math and Physical Sciences Numbered Reference Style
+\documentclass[pdflatex,sn-mathphys-num,iicol]{sn-jnl}% Math and Physical Sciences Numbered Reference Style, double column (SIVP requirement, confirmed by editor)
 
 \usepackage{graphicx}
 \usepackage{booktabs}
@@ -239,9 +239,9 @@ throughout this paper; the pooled-vector head remains available
 (\texttt{use\_spatial\_bbox=False} in \texttt{ema\_det.py}) for
 reproducibility of the original design.
 
-\begin{table}[t]
+\begin{table*}[t]
 \caption{Bounding-box head ablation, EMA-Det (final, no CBAM), $N{=}5$ seeds, identical protocol.}\label{tab:spatialbbox}
-\begin{tabular*}{\textwidth}{@{\extracolsep\fill}lcccc}
+\begin{tabular*}{\linewidth}{@{\extracolsep\fill}lcccc}
 \toprule
 Bbox head & mAP@0.5 & mAP@0.75 & mAP@.5:.95 & Recall \\
 \midrule
@@ -249,18 +249,18 @@ Pooled vector (legacy) & $56.64{\pm}2.44$ & $18.33{\pm}2.67$ & $25.18{\pm}2.08$ 
 Spatial feature map (default) & $\mathbf{58.03{\pm}1.60}$ & $\mathbf{24.07{\pm}2.43}$ & $\mathbf{28.04{\pm}1.90}$ & $96.08{\pm}\mathbf{0.47}$ \\
 \botrule
 \end{tabular*}
-\end{table}
+\end{table*}
 
-\begin{figure}[t]
+\begin{figure*}[t]
 \centering
-\includegraphics[width=0.55\textwidth]{architecture.png}
+\includegraphics[width=0.55\linewidth]{architecture.png}
 \caption{EMA-Det architecture. Orange paths indicate early-exit
 routes; candidates confidently classified as background at Gate~1 or
 Gate~2 skip the remaining blocks. (Schematic regenerated from the
 implementation in \texttt{src/ema\_det.py} via
 \texttt{src/make\_architecture\_figure.py}; replace with a
 professionally typeset version before submission.)}\label{fig:arch}
-\end{figure}
+\end{figure*}
 
 \subsection{Loss Function}\label{sec:loss}
 The verification head is optimized with a combined classification and
@@ -365,9 +365,9 @@ dropout.
 
 Table~\ref{tab:cbam} reports the corrected, controlled $N=5$ comparison.
 
-\begin{table}[t]
+\begin{table*}[t]
 \caption{Controlled comparison, identical $N{=}5$-seed / 150-epoch / early-stopping(patience=20) protocol, both with the default spatial bbox head (Section~\ref{sec:spatialbbox}). Mean $\pm$ std over 5 seeds, clean test set.}\label{tab:cbam}
-\begin{tabular*}{\textwidth}{@{\extracolsep\fill}lccccccc}
+\begin{tabular*}{\linewidth}{@{\extracolsep\fill}lccccccc}
 \toprule
 Config & mAP@0.5 & mAP@0.75 & mAP@.5:.95 & Precision & Recall & F1 & Mean IoU \\
 \midrule
@@ -375,7 +375,7 @@ EMA-Det (final) & $58.03{\pm}1.60$ & $24.07{\pm}2.43$ & $28.04{\pm}1.90$ & $95.0
 EMA-Det + CBAM & $57.82{\pm}2.12$ & $24.77{\pm}3.88$ & $28.30{\pm}2.07$ & $\mathbf{96.91{\pm}0.43}$ & $93.23{\pm}1.37$ & $95.03{\pm}0.72$ & $\mathbf{66.28{\pm}1.56}$ \\
 \botrule
 \end{tabular*}
-\end{table}
+\end{table*}
 
 This result changes the CBAM story again, and for the better: once the box
 head retains spatial information (Section~\ref{sec:spatialbbox}), CBAM's
@@ -406,9 +406,9 @@ On this basis, the final architecture omits CBAM.
 
 \subsection{Comparison with Lightweight Baselines}\label{sec:baselines}
 
-\begin{table}[t]
+\begin{table*}[t]
 \caption{RoI-verification comparison, clean dataset, $N{=}5$ seeds, identical training protocol (scratch, 150 epochs, early stopping). All non-EMA-Det rows trained via \texttt{src/train\_baseline.py} / \texttt{src/train\_yolov8n\_clean.py}; see \texttt{results/baseline\_*.json}.}\label{tab:baselines}
-\begin{tabular*}{\textwidth}{@{\extracolsep\fill}lccccc}
+\begin{tabular*}{\linewidth}{@{\extracolsep\fill}lccccc}
 \toprule
 Model & mAP@0.5 & mAP@.5:.95 & Recall & Params & FLOPs \\
 \midrule
@@ -419,7 +419,7 @@ ShuffleNetV2 x0.5 (scratch) & $56.26{\pm}2.11$ & $25.68{\pm}1.37$ & $93.80{\pm}1
 \botrule
 \end{tabular*}
 \footnotetext{Note: EMA-Det row uses the spatial-bbox-head numbers (Section~\ref{sec:spatialbbox}). Recall's std (0.47) is tighter than the legacy head's (2.54) -- strengthens, not weakens, this table's argument.}
-\end{table}
+\end{table*}
 
 This table is the clearest empirical support for Section~\ref{sec:intro}'s central claim.
 YOLOv8n — a full detection architecture with a proper multi-scale head and
@@ -454,9 +454,9 @@ lower than the conference draft's (24.8\% vs.\ the previously reported
 34.4\%) — the remaining candidates are genuinely harder, not artificially
 easy repeats.
 
-\begin{table}[t]
+\begin{table*}[t]
 \caption{Early-exit threshold $\tau$ vs.\ compute trade-off, EMA-Det (final), clean test set. FPS measured single-sample (batch=1) on an RTX~4060 laptop GPU — a development-machine proxy, not the target Jetson/FPGA hardware (Section~\ref{sec:hardware}).}\label{tab:earlyexit}
-\begin{tabular*}{\textwidth}{@{\extracolsep\fill}ccccc}
+\begin{tabular*}{\linewidth}{@{\extracolsep\fill}ccccc}
 \toprule
 $\tau$ & mAP@0.5 & FLOPs saved & FPS & Gate1\% / Gate2\% / Main\% \\
 \midrule
@@ -466,7 +466,7 @@ $\tau$ & mAP@0.5 & FLOPs saved & FPS & Gate1\% / Gate2\% / Main\% \\
 0.95 & 58.9\% & 12.5\% & 337.8 & 9.7 / 34.0 / 56.3 \\
 \botrule
 \end{tabular*}
-\end{table}
+\end{table*}
 
 \subsection{Precision--Recall Curves}\label{sec:pr}
 Figure~\ref{fig:pr} shows classification-head PR curves (confidence-threshold
@@ -476,11 +476,11 @@ config) on the clean test set: AP $=0.9859$ (final) and AP $=0.9886$ (CBAM)
 finding that the two configurations' classification behavior is close once
 the spatial bbox head is in place.
 
-\begin{figure}[t]
+\begin{figure*}[t]
 \centering
-\includegraphics[width=0.6\textwidth]{pr_curve.png}
+\includegraphics[width=0.6\linewidth]{pr_curve.png}
 \caption{Precision-recall curves, clean test set.}\label{fig:pr}
-\end{figure}
+\end{figure*}
 
 \subsection{Hardware Validation Status}\label{sec:hardware}
 
@@ -551,9 +551,9 @@ modalities without ever seeing a thermal frame, but a UAV silhouette in
 thermal-IR is visually different enough from the EO training distribution
 that a non-trivial fraction of true positives are missed.
 
-\begin{table}[t]
+\begin{table*}[t]
 \caption{Zero-shot EO$\to$thermal transfer (no fine-tuning).}\label{tab:crosssensor}
-\begin{tabular*}{\textwidth}{@{\extracolsep\fill}lccccc}
+\begin{tabular*}{\linewidth}{@{\extracolsep\fill}lccccc}
 \toprule
 Split & mAP@0.5 & mAP@0.75 & mAP@.5:.95 & Precision & Recall \\
 \midrule
@@ -561,7 +561,7 @@ Val (n=12{,}388)  & 52.05\% & 16.06\% & 21.82\% & 95.31\% & 86.29\% \\
 Test (n=16{,}808) & 39.38\% & 11.80\% & 15.77\% & 95.53\% & 80.12\% \\
 \botrule
 \end{tabular*}
-\end{table}
+\end{table*}
 
 \textbf{Thermal-from-scratch reference.} To give the zero-shot number an
 upper bound to be read against, we trained EMA-Det (final config: no
@@ -584,16 +584,16 @@ appearance variation — which is consistent with the higher mAP/precision
 achieved here despite recall being marginally below the EO in-domain
 number.
 
-\begin{table}[t]
+\begin{table*}[t]
 \caption{Thermal-from-scratch reference (EMA-Det, final config), $N=5$ seeds, mean $\pm$ std.}\label{tab:thermalscratch}
-\begin{tabular*}{\textwidth}{@{\extracolsep\fill}lcccc}
+\begin{tabular*}{\linewidth}{@{\extracolsep\fill}lcccc}
 \toprule
 mAP@0.5 & mAP@0.75 & mAP@.5:.95 & Precision & Recall \\
 \midrule
 $89.52\pm0.93\%$ & $53.43\pm3.42\%$ & $51.82\pm1.62\%$ & $97.55\pm0.39\%$ & $91.64\pm0.41\%$ \\
 \botrule
 \end{tabular*}
-\end{table}
+\end{table*}
 
 \section{Limitations}\label{sec:limitations}
 \begin{itemize}
