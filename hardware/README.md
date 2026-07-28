@@ -45,6 +45,21 @@ this README's "still needed" list is a real gap, not a formality.
   scripting rather than this exact Tcl script — expect to adapt this step
   once inside the actual 2025.2 IDE.
 
+## Status: Block1's streaming kernel is fully verified and fits budget
+
+**2026-07-28, iteration 3 (native-width-multiply fix confirmed):** C-sim
+re-run against the exact synthesized design: `2/2 images passed`,
+max|diff| 1.48e-2/1.45e-2 (tol=2e-2), `0/262144` mismatches each.
+Re-synthesized: **BRAM_18K 0/280 (0%), DSP 145/220 (65%), FF 10700/106400
+(10%), LUT 13876/53200 (26%)** — every resource now fits, Fmax 137.3 MHz
+(vs. 100 MHz target). This is the project's first fully-closed real
+hardware result for any part of EMA-Det: accuracy verified in both float
+and fixed point, resource budget verified by real synthesis, not
+estimated. Remaining before citing this in the paper: C/RTL co-simulation
+(step 3 below) — csim uses HLS's own C++ compiler on the *pre-synthesis*
+C++, not the actual generated RTL; cosim is the check that the RTL
+matches.
+
 ## Status update: Block1's streaming kernel has passed real C-simulation
 
 **2026-07-28, Vitis Unified IDE 2025.2, Zynq-7020 (`xc7z020clg484-1`),
@@ -88,18 +103,22 @@ not yet re-synthesized to confirm.
 
 ## What is explicitly NOT done yet, and must happen in this order
 
-1. ~~Compile and run in float~~ / ~~synthesize~~ — both done for
-   `block1_streaming_forward` (see above, two iterations); `main_tb.cpp`
-   (the flat Gate1+Gate2 translation) still needs its own run of either.
-2. **Re-run C-sim then C-synthesis** for `block1_streaming_forward` with
-   the native-width-multiply fix above, to confirm DSP drops under the
-   220 budget without reopening the BRAM/LUT wins.
-3. **C/RTL co-simulation** (`cosim_design` / "C/RTL COSIMULATION > Run")
-   against the same golden reference in fixed point — C-sim uses HLS's
-   own C++ compiler; cosim additionally validates the actual synthesized
-   RTL datapath, which C-sim alone does not.
-4. Only after step 3 passes does it make sense to report final resource
-   usage, power, or latency numbers in the paper.
+1. ~~Compile and run in float~~ / ~~synthesize~~ / ~~fix DSP
+   over-utilization~~ — **all done for `block1_streaming_forward`** (see
+   above, three iterations, fully within budget). `main_tb.cpp` (the flat
+   Gate1+Gate2 translation covering the rest of the network) still needs
+   its own run of any of these steps.
+2. **C/RTL co-simulation** for `block1_streaming_forward`
+   (`cosim_design` / "C/RTL COSIMULATION > Run") against the same golden
+   reference — C-sim so far only validates the pre-synthesis C++ against
+   HLS's own compiler; cosim is the check that the actual generated RTL
+   (what would go on the chip) still matches.
+3. Only after step 2 passes does it make sense to cite Block1's
+   resource/latency numbers in the paper as final.
+4. Everything else in the network (Block2 through Gate2) still uses the
+   flat, non-streaming translation (`ema_det_gates.cpp`) and has not been
+   run through any of steps 1-2 above at all -- Block1 is one restructured
+   layer out of the whole network, not the whole story yet.
 
 ## A known, unresolved design gap (not just "untested")
 
