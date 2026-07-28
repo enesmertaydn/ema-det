@@ -241,6 +241,7 @@ reproducibility of the original design.
 
 \begin{table*}[t]
 \caption{Bounding-box head ablation, EMA-Det (final, no CBAM), $N{=}5$ seeds, identical protocol.}\label{tab:spatialbbox}
+\resizebox{\linewidth}{!}{%
 \begin{tabular*}{\linewidth}{@{\extracolsep\fill}lcccc}
 \toprule
 Bbox head & mAP@0.5 & mAP@0.75 & mAP@.5:.95 & Recall \\
@@ -248,7 +249,7 @@ Bbox head & mAP@0.5 & mAP@0.75 & mAP@.5:.95 & Recall \\
 Pooled vector (legacy) & $56.64{\pm}2.44$ & $18.33{\pm}2.67$ & $25.18{\pm}2.08$ & $96.33{\pm}2.54$ \\
 Spatial feature map (default) & $\mathbf{58.03{\pm}1.60}$ & $\mathbf{24.07{\pm}2.43}$ & $\mathbf{28.04{\pm}1.90}$ & $96.08{\pm}\mathbf{0.47}$ \\
 \botrule
-\end{tabular*}
+\end{tabular*}}
 \end{table*}
 
 \begin{figure*}[t]
@@ -367,6 +368,7 @@ Table~\ref{tab:cbam} reports the corrected, controlled $N=5$ comparison.
 
 \begin{table*}[t]
 \caption{Controlled comparison, identical $N{=}5$-seed / 150-epoch / early-stopping(patience=20) protocol, both with the default spatial bbox head (Section~\ref{sec:spatialbbox}). Mean $\pm$ std over 5 seeds, clean test set.}\label{tab:cbam}
+\resizebox{\linewidth}{!}{%
 \begin{tabular*}{\linewidth}{@{\extracolsep\fill}lccccccc}
 \toprule
 Config & mAP@0.5 & mAP@0.75 & mAP@.5:.95 & Precision & Recall & F1 & Mean IoU \\
@@ -374,7 +376,7 @@ Config & mAP@0.5 & mAP@0.75 & mAP@.5:.95 & Precision & Recall & F1 & Mean IoU \\
 EMA-Det (final) & $58.03{\pm}1.60$ & $24.07{\pm}2.43$ & $28.04{\pm}1.90$ & $95.00{\pm}0.93$ & $\mathbf{96.08{\pm}0.47}$ & $\mathbf{95.53{\pm}0.46}$ & $65.70{\pm}1.46$ \\
 EMA-Det + CBAM & $57.82{\pm}2.12$ & $24.77{\pm}3.88$ & $28.30{\pm}2.07$ & $\mathbf{96.91{\pm}0.43}$ & $93.23{\pm}1.37$ & $95.03{\pm}0.72$ & $\mathbf{66.28{\pm}1.56}$ \\
 \botrule
-\end{tabular*}
+\end{tabular*}}
 \end{table*}
 
 This result changes the CBAM story again, and for the better: once the box
@@ -408,6 +410,7 @@ On this basis, the final architecture omits CBAM.
 
 \begin{table*}[t]
 \caption{RoI-verification comparison, clean dataset, $N{=}5$ seeds, identical training protocol (scratch, 150 epochs, early stopping). All non-EMA-Det rows trained via \texttt{src/train\_baseline.py} / \texttt{src/train\_yolov8n\_clean.py}; see \texttt{results/baseline\_*.json}.}\label{tab:baselines}
+\resizebox{\linewidth}{!}{%
 \begin{tabular*}{\linewidth}{@{\extracolsep\fill}lccccc}
 \toprule
 Model & mAP@0.5 & mAP@.5:.95 & Recall & Params & FLOPs \\
@@ -417,7 +420,7 @@ YOLOv8n (scratch) & $\mathbf{79.45{\pm}0.69}$ & $\mathbf{49.59{\pm}0.45}$ & $73.
 MobileNetV3-Small (scratch) & $57.04{\pm}4.51$ & $26.35{\pm}3.41$ & $94.05{\pm}1.39$ & 0.93M & 38.0M \\
 ShuffleNetV2 x0.5 (scratch) & $56.26{\pm}2.11$ & $25.68{\pm}1.37$ & $93.80{\pm}1.11$ & 0.35M & 24.9M \\
 \botrule
-\end{tabular*}
+\end{tabular*}}
 \footnotetext{Note: EMA-Det row uses the spatial-bbox-head numbers (Section~\ref{sec:spatialbbox}). Recall's std (0.47) is tighter than the legacy head's (2.54) -- strengthens, not weakens, this table's argument.}
 \end{table*}
 
@@ -456,6 +459,7 @@ easy repeats.
 
 \begin{table*}[t]
 \caption{Early-exit threshold $\tau$ vs.\ compute trade-off, EMA-Det (final), clean test set. FPS measured single-sample (batch=1) on an RTX~4060 laptop GPU — a development-machine proxy, not the target Jetson/FPGA hardware (Section~\ref{sec:hardware}).}\label{tab:earlyexit}
+\resizebox{\linewidth}{!}{%
 \begin{tabular*}{\linewidth}{@{\extracolsep\fill}ccccc}
 \toprule
 $\tau$ & mAP@0.5 & FLOPs saved & FPS & Gate1\% / Gate2\% / Main\% \\
@@ -465,7 +469,7 @@ $\tau$ & mAP@0.5 & FLOPs saved & FPS & Gate1\% / Gate2\% / Main\% \\
 0.92 & 58.9\% & 13.9\% & 336.3 & 11.9 / 33.1 / 55.1 \\
 0.95 & 58.9\% & 12.5\% & 337.8 & 9.7 / 34.0 / 56.3 \\
 \botrule
-\end{tabular*}
+\end{tabular*}}
 \end{table*}
 
 \subsection{Precision--Recall Curves}\label{sec:pr}
@@ -553,6 +557,7 @@ that a non-trivial fraction of true positives are missed.
 
 \begin{table*}[t]
 \caption{Zero-shot EO$\to$thermal transfer (no fine-tuning).}\label{tab:crosssensor}
+\resizebox{\linewidth}{!}{%
 \begin{tabular*}{\linewidth}{@{\extracolsep\fill}lccccc}
 \toprule
 Split & mAP@0.5 & mAP@0.75 & mAP@.5:.95 & Precision & Recall \\
@@ -560,7 +565,7 @@ Split & mAP@0.5 & mAP@0.75 & mAP@.5:.95 & Precision & Recall \\
 Val (n=12{,}388)  & 52.05\% & 16.06\% & 21.82\% & 95.31\% & 86.29\% \\
 Test (n=16{,}808) & 39.38\% & 11.80\% & 15.77\% & 95.53\% & 80.12\% \\
 \botrule
-\end{tabular*}
+\end{tabular*}}
 \end{table*}
 
 \textbf{Thermal-from-scratch reference.} To give the zero-shot number an
@@ -586,13 +591,14 @@ number.
 
 \begin{table*}[t]
 \caption{Thermal-from-scratch reference (EMA-Det, final config), $N=5$ seeds, mean $\pm$ std.}\label{tab:thermalscratch}
+\resizebox{\linewidth}{!}{%
 \begin{tabular*}{\linewidth}{@{\extracolsep\fill}lcccc}
 \toprule
 mAP@0.5 & mAP@0.75 & mAP@.5:.95 & Precision & Recall \\
 \midrule
 $89.52\pm0.93\%$ & $53.43\pm3.42\%$ & $51.82\pm1.62\%$ & $97.55\pm0.39\%$ & $91.64\pm0.41\%$ \\
 \botrule
-\end{tabular*}
+\end{tabular*}}
 \end{table*}
 
 \section{Limitations}\label{sec:limitations}
