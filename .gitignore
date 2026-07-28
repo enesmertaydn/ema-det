@@ -9,6 +9,7 @@ results/thermal/*.log
 src/*.pt
 hardware/hls/weights.h
 hardware/hls/input_test_*.bin
+hardware/hls/block1_ref/
 hardware/hls/*_prj/
 hardware/hls/*.log
 

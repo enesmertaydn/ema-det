@@ -151,6 +151,22 @@ def main():
 
     print(f"Wrote reference_io.json / reference_io.csv ({len(ref)} test samples) for later C++ validation")
 
+    # --- Block1-only golden reference (for validating a standalone streaming
+    # Block1 kernel, independent of the rest of the network) ---
+    block1_dir = os.path.join(OUT_DIR, "block1_ref")
+    os.makedirs(block1_dir, exist_ok=True)
+    for fname in test_imgs[:2]:
+        path = os.path.join(TEST_DIR, "images", fname)
+        img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+        img = cv2.resize(img, (128, 128)).astype(np.float32) / 255.0
+        x = torch.tensor(img).unsqueeze(0).unsqueeze(0)
+        with torch.no_grad():
+            block1_out = model.block1(x)[0].numpy()  # (16, 128, 128), post-LeakyReLU
+        stem = fname.replace(".jpg", "")
+        img.tofile(os.path.join(block1_dir, f"{stem}_input.bin"))          # 128*128 float32
+        block1_out.tofile(os.path.join(block1_dir, f"{stem}_block1_out.bin"))  # 16*128*128 float32
+    print(f"Wrote Block1-only golden reference (input + post-LeakyReLU output) -> {block1_dir}")
+
 
 if __name__ == "__main__":
     main()
