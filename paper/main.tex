@@ -283,17 +283,14 @@ C_{i+1}(F_i)\ (\text{continue}), & \hat{y}_i > (1-\tau)
 
 \subsection{Dataset Construction and a Corrected Leakage Bug}\label{sec:leakage}
 
-The dataset is built from three raw sources: rotary-wing and fixed-wing UAV
-photographs (labeled) and empty-sky photographs (unlabeled, hard-negative
-source). % TODO(author): refs.bib has dasmehdixtr_kaggle and
-% mohsen_roboflow entries that are plausibly two of these three raw
-% sources but are not cited anywhere in this draft -- confirm which
-% source(s) they correspond to (rotor/fixed/sky) and cite them here, or
-% remove the unused bib entries if they don't apply. Not resolved
-% automatically since the source code gives no name/URL linking a raw
-% image folder to a specific dataset origin.
-\textbf{This extended version corrects a train/test leakage bug
-found in the conference version's dataset-construction script.}
+The dataset is built from two public raw sources, matching the conference
+predecessor's data description: rotary-wing and fixed-wing LSS UAV
+photographs from a Kaggle collection~\cite{dasmehdixtr_kaggle} (labeled,
+80\% of the raw pool), and bird/empty-sky photographs from a Roboflow
+Universe collection~\cite{mohsen_roboflow} (unlabeled, hard-negative
+source, 20\%). \textbf{This extended version corrects a train/test
+leakage bug found in the conference version's dataset-construction
+script.}
 
 The original pipeline cropped one positive patch (around each labeled UAV,
 with a $3\times$ context factor) and one hard-negative patch (from the same
@@ -642,8 +639,10 @@ available third-party collections, see Section~\ref{sec:leakage}).
 construction pipeline and derived patches are described in
 Section~\ref{sec:leakage}; code to regenerate the dataset from cited public
 sources is provided (see Code availability). Raw source imagery is drawn
-from the public Kaggle/Roboflow collections cited in the conference
-predecessor of this work.
+from the public Kaggle~\cite{dasmehdixtr_kaggle} and Roboflow
+Universe~\cite{mohsen_roboflow} collections cited there. The thermal-IR
+cross-sensor data (Section~\ref{sec:crosssensor}) is the public
+Anti-UAV410 benchmark~\cite{antiuav410}.
 \item \textbf{Materials availability:} Not applicable.
 \item \textbf{Code availability:} All model, training, dataset-construction,
 and evaluation code is available in a version-controlled repository

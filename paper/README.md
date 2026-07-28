@@ -52,6 +52,13 @@ independently re-checked.
   at this resolution.
 - Real Springer `sn-jnl.cls` (v3.1, Dec 2024) is now in use, not the
   placeholder `article` class — see the header comment in `main.tex`.
+- **Dataset-source citations resolved**: cross-checked against the SIU
+  conference PDF (`Yayınlarım/emadet.pdf`, Section III-A), which explicitly
+  names the two raw sources — Kaggle (`dasmehdixtr_kaggle`, rotary/fixed-wing
+  UAV photos, 80% of the raw pool) and Roboflow Universe
+  (`mohsen_roboflow`, bird/empty-sky hard negatives, 20%). Both are now
+  cited in `sec:leakage` and the Declarations/Data-availability bullet;
+  `refs.bib` has zero unused entries.
 
 ## What's NOT in this draft, on purpose
 
