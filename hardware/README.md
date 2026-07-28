@@ -38,14 +38,47 @@ this README's "still needed" list is a real gap, not a formality.
 
 ## A known, unresolved design gap (not just "untested")
 
-The current kernel allocates one full-size buffer per layer (e.g. Block1's
-output alone is 16×128×128 — roughly 512 KB even at `ap_fixed<16,6>`,
-against the Zynq-7020's ~613 KB total BRAM). This is a **functional/golden
-reference**, written to get the arithmetic right first — it will not fit as
-synthesized today. The paper's planned AXI4-Stream / line-buffer dataflow
-restructuring is the actual fix, and should be designed using real
-`csynth_design` resource reports (step 3 above) as feedback, not guessed at
-before any synthesis has run once.
+The current kernel allocates one full-size `static` buffer per layer. This
+is a **functional/golden reference**, written to get the arithmetic right
+first — it will not fit as synthesized today. `src/estimate_hls_bram.py`
+gives a precise (arithmetic, not synthesized) tally of every declared
+buffer at the `ap_fixed<16,6>` width used under `HLS_TARGET`:
+
+```
+buffer            shape             elements   KB @16b  % of total
+block1_out        16x128x128         262,144     512.0       30.3%
+block2a_out       32x64x64           131,072     256.0       15.2%
+block2b_out       32x64x64           131,072     256.0       15.2%
+pool1_out         16x64x64            65,536     128.0        7.6%
+block3a_out       64x32x32            65,536     128.0        7.6%
+block3b_out       64x32x32            65,536     128.0        7.6%
+pool2_out         32x32x32            32,768      64.0        3.8%
+block4a_out       128x16x16           32,768      64.0        3.8%
+block4b_out       128x16x16           32,768      64.0        3.8%
+gate1_conv_out    16x32x32            16,384      32.0        1.9%
+pool3_out         64x16x16            16,384      32.0        1.9%
+pool4_out         128x8x8              8,192      16.0        0.9%
+gate2_conv_out    64x8x8               4,096       8.0        0.5%
+
+Sum of all static buffers (if concurrently live): 1688.0 KB
+XC7Z020 total BRAM capacity:                        630.0 KB
+Ratio: 2.68x over budget (before counting weights.h, FIFOs, or any double-buffering)
+```
+
+**This is element-count x bit-width arithmetic on the declared array
+shapes, not a synthesis result** — real BRAM mapping depends on how
+Vivado HLS packs/partitions arrays, which cannot be known without running
+`csynth_design`. But it does tell us where to prioritize the AXI4-Stream /
+line-buffer restructuring: Block1 and Block2 alone (`block1_out` +
+`block2a_out` + `block2b_out`) account for 60.7% of the naive total and
+already exceed the entire chip's BRAM budget by themselves (1024 KB vs.
+630 KB) — converting *just those three* to row-streamed line buffers
+(rather than materializing the full feature map) should be the first
+restructuring target, before touching Blocks 3/4 which are individually
+much smaller. This priority ordering is the one concrete thing this
+analysis can responsibly claim without a toolchain; the actual
+LUT/BRAM/latency numbers still require running the real HLS flow (steps
+1-5 above) on a machine that has it.
 
 ## Files not committed to git
 

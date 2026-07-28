@@ -496,12 +496,17 @@ been prepared for Vivado/Vitis HLS synthesis targeting a Zynq-7020 (see
 synthesized} — this development environment has no C/C++ toolchain and no
 Vivado/Vitis HLS installation. LUT, BRAM, latency, and power figures
 require running the prepared \texttt{run\_hls.tcl} flow on a machine with
-the toolchain, plus resolving a known design gap (current per-layer buffer
-sizing exceeds the Zynq-7020's on-chip BRAM budget; an AXI4-Stream/
-line-buffer restructuring is planned, informed by real \texttt{csynth}
-resource reports rather than estimated in advance). We report this
-status transparently rather than presenting placeholder numbers as
-measurements.
+the toolchain, plus resolving a known design gap: a static
+element-count$\times$bit-width tally of the current kernel's per-layer
+buffers (\texttt{src/estimate\_hls\_bram.py}, not a synthesis result) sums
+to 1688~KB at the working \texttt{ap\_fixed<16,6>} precision against the
+Zynq-7020's 630~KB total BRAM ($2.68\times$ over budget), with
+Block~1/Block~2 alone accounting for 60.7\% of that total —
+prioritizing an AXI4-Stream/line-buffer restructuring of those two blocks
+first is informed by this arithmetic, though the real fix must still be
+driven by actual \texttt{csynth} resource reports rather than estimated in
+advance. We report this status transparently rather than presenting
+placeholder numbers as measurements.
 
 \subsection{Cross-Sensor Generalization}\label{sec:crosssensor}
 
