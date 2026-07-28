@@ -55,58 +55,59 @@
 
 \affil*[1]{\orgdiv{Department of Electrical and Electronics Engineering}, \orgname{Ankara Y{\i}ld{\i}r{\i}m Beyaz{\i}t University}, \orgaddress{\city{Ankara}, \country{T{\"u}rkiye}}}
 
-\abstract{Autonomous detection of Low-Slow-Small (LSS) UAVs on edge devices necessitates
-two-stage pipelines, in which a lightweight proposal stage nominates
+\abstract{Autonomous detection of Low-Slow-Small (LSS) UAVs on edge devices
+requires two-stage pipelines, where a lightweight proposal stage nominates
 candidate regions that a verification network must confirm or reject under
 tight compute and memory budgets. This paper presents EMA-Det, a
 hardware-aware region-verification network combining a physically
-initialized (Laplacian/Sobel) first layer with two early-exit gates that let
-confidently-background candidates skip the majority of the network. We
-identify and correct two methodological issues present in our earlier
-conference report: (i) a confound between an attention-module (CBAM)
-ablation and the main comparison table, caused by the two being trained
-under different budgets, and (ii) train/test leakage in the region-patch
-dataset, traced to near-duplicate raw source photographs (consistent with
-sequential video-frame extraction) being split at the patch level rather
-than the source-photograph level. Correcting both, we retrain EMA-Det with
-and without CBAM under an identical $N=5$-seed, 150-epoch protocol on a
-deduplicated, source-level-split dataset, and further decouple the box head
-from the pooled classification feature so it retains positional information
+initialized (Laplacian/Sobel) first layer with two early-exit gates that
+let confidently-background candidates skip most of the network. We correct
+two methodological issues from our earlier conference report: a
+training-budget confound in the CBAM ablation, and train/test leakage
+traced to near-duplicate source photographs split at the patch rather than
+source-photograph level. After fixing both, we retrain EMA-Det with and
+without CBAM under an identical $N=5$-seed, 150-epoch protocol on a
+deduplicated, source-level-split dataset, and decouple the box head from
+the pooled classification feature so it retains positional information
 (Section~\ref{sec:spatialbbox}), which strictly improves localization
 (mAP@0.5:0.95: $25.18\pm2.08\% \to 28.04\pm1.90\%$) at negligible cost.
-Under the original (pooled-vector) box head, CBAM appeared to trade a
-localization gain for a severe reliability cost (recall std $8.85$ vs.\
-$2.54$ points, 2 of 5 seeds collapsing to 74--79\% recall). Once the box
-head is fixed to retain spatial information, that entire trade-off
-collapses: CBAM's mAP advantage vanishes (mAP@0.5:0.95 $28.30\pm2.07\%$ vs.\
-$28.04\pm1.90\%$, effectively tied) while its recall is still lower and
-somewhat less stable ($93.23\pm1.37\%$ vs.\ $96.08\pm0.47\%$) — indicating
-CBAM's original benefit was substituting for spatial information the
-pooled bbox head had been discarding, not adding anything the fixed
-architecture cannot already provide on its own. This is a cleaner
-justification for excluding CBAM than either of our earlier analyses gave.
-Against lightweight baselines trained from scratch on the same corrected
-dataset, a full detection architecture (YOLOv8n) reaches substantially
-higher mAP@0.5:0.95 ($49.59\pm0.45\%$) but its recall is capped at
-$73.75\pm1.86\%$ — well below EMA-Det's $96.08\pm0.47\%$ — concretely
-illustrating this paper's central claim that mAP is the wrong optimization
-target for a second-stage verifier, since system-level recall
-$R_{\text{total}} = R_{\text{proposal}} \times R_{\text{verifier}}$ is
-gated by the weaker of the two factors. Finally, we evaluate cross-sensor
-generalization on the Anti-UAV410 thermal-IR benchmark: the EO-trained
-verifier transfers zero-shot with precision intact but recall falling from
-$96.08\pm0.47\%$ to $80.12$--$86.29\%$ and mAP@0.5 to $39.38$--$52.05\%$,
-while a thermal-from-scratch reference under the identical protocol
-reaches mAP@0.5 $89.52\pm0.93\%$ and recall $91.64\pm0.41\%$ — confirming
-the zero-shot gap is a genuine domain-shift effect rather than an
-architectural ceiling, and suggesting thermal-IR verification is, if
-anything, an easier task than EO at this resolution.}
+This single change also fully explains away CBAM's previously observed
+benefit: once spatial information is restored, CBAM's mAP advantage
+vanishes ($28.30\pm2.07\%$ vs.\ $28.04\pm1.90\%$, effectively tied) while a
+smaller recall cost remains ($93.23\pm1.37\%$ vs.\ $96.08\pm0.47\%$) —
+indicating CBAM's original benefit was substituting for spatial
+information the pooled bbox head had discarded. Against lightweight
+baselines trained from scratch on the same corrected dataset, a full
+detection architecture (YOLOv8n) reaches higher mAP@0.5:0.95
+($49.59\pm0.45\%$) but its recall is capped at $73.75\pm1.86\%$, well
+below EMA-Det's $96.08\pm0.47\%$ — concrete support for this paper's
+central claim that mAP is the wrong optimization target for a second-stage
+verifier, since system-level recall $R_{\text{total}} =
+R_{\text{proposal}} \times R_{\text{verifier}}$ is gated by the weaker
+factor. Finally, cross-sensor evaluation on the Anti-UAV410 thermal-IR
+benchmark shows the EO-trained verifier transfers zero-shot with precision
+intact but recall falling to $80.12$--$86.29\%$ and mAP@0.5 to
+$39.38$--$52.05\%$, while a thermal-from-scratch reference under the
+identical protocol reaches mAP@0.5 $89.52\pm0.93\%$ and recall
+$91.64\pm0.41\%$ — confirming the zero-shot gap is a genuine domain-shift
+effect, not an architectural ceiling.}
 
 \keywords{UAV Detection, Region Verification, Early-Exit, Hardware-Aware Design, Cross-Sensor Generalization, Reproducibility}
 
 \maketitle
 
 \section{Introduction}\label{sec:intro}
+
+\textit{This manuscript is an extended version of a paper accepted for
+presentation at the IEEE Signal Processing and Communications
+Applications Conference (SIU 2026)~\cite{aydin2026emadetconf}; conference
+proceedings publication is pending at the time of this submission. This
+extended version corrects two methodological issues discovered after the
+conference submission (Sections~\ref{sec:cbam} and~\ref{sec:leakage}),
+retrains all reported results under a controlled protocol, adds a
+decoupled spatial bounding-box head (Section~\ref{sec:spatialbbox}), and
+adds a new cross-sensor generalization study (Section~\ref{sec:crosssensor})
+not present in the conference version.}
 
 Asymmetric threats posed by Low-Slow-Small (LSS) class Unmanned Aerial
 Vehicles (UAVs) to civilian and military critical infrastructure require an
