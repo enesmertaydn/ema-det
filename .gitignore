@@ -4,11 +4,20 @@ results/*.pt
 results/*.log
 results/*.onnx
 results/yolov8n_clean/
+results/thermal/*.pt
+results/thermal/*.log
 src/*.pt
 hardware/hls/weights.h
 hardware/hls/input_test_*.bin
 hardware/hls/*_prj/
 hardware/hls/*.log
+
+# Raw third-party downloads (huge, publicly available upstream — not committed)
+Anti-UAV410/
+Anti-UAV410-main/
+Anti-UAV410.zip
+Download+the+journal+article+template+package*/
+paper/sn-template/
 
 # HLS/Vivado build byproducts (if this ever gets synthesized here)
 *.jou

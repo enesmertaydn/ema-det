@@ -34,25 +34,40 @@ independently re-checked.
   checkpoints), hardware status section (ONNX numbers for both configs) —
   all regenerated against the final checkpoints, no stale numbers left.
 
+- **Cross-sensor generalization section added and complete** (`sec:crosssensor`,
+  no TODOs remaining): built a leakage-free thermal RoI dataset from
+  Anti-UAV410 (video-level split preserved, one cross-split video excluded,
+  same-frame hard negatives — 27,768/12,388/16,808 train/val/test patches,
+  see `src/build_thermal_dataset.py`). Zero-shot EO→thermal transfer of the
+  existing EO-trained checkpoint is measured and real
+  (`results/cross_sensor_zeroshot.json`): mAP@0.5 drops from the EO
+  in-domain 58.03% to 39.4%/52.1% (test/val), recall from 96.08% to
+  80.1%/86.3%, while precision stays ~95.5%. The thermal-from-scratch
+  reference (`src/train_thermal_scratch.py`, N=5 seeds,
+  `results/thermal/controlled_comparison.json`) reaches mAP@0.5
+  89.52±0.93%, recall 91.64±0.41%, precision 97.55±0.39% — same
+  architecture/params/FLOPs as the EO run, confirming the zero-shot gap is
+  a genuine domain-shift effect rather than an architectural ceiling, and
+  suggesting thermal-IR verification is if anything an easier task than EO
+  at this resolution.
+- Real Springer `sn-jnl.cls` (v3.1, Dec 2024) is now in use, not the
+  placeholder `article` class — see the header comment in `main.tex`.
+
 ## What's NOT in this draft, on purpose
 
-- No cross-sensor (EO/thermal-IR) section — no thermal dataset was
-  available; the original conference plan's claim is not repeated here
-  without data to back it.
 - No FPGA synthesis numbers (LUT/BRAM/latency/power) — not measured, see
   `hardware/README.md`.
 
 ## Before submission (not done here)
 
-- Swap `\documentclass{article}` for Springer Nature's actual `sn-jnl.cls`
-  (obtain from the SIVP submission portal).
-- Fill in author affiliations/ORCID/funding/acknowledgments.
+- Fill in author affiliations/ORCID/funding/acknowledgments (Declarations
+  section placeholders in `main.tex`).
 - Replace the schematic Fig. 1 with a professionally typeset version.
 - A full proofread/native-English pass — this draft prioritizes getting the
   corrected technical content right over prose polish.
-- Decide whether to source a thermal/IR dataset for cross-sensor
-  generalization, or drop that claim from the paper's contribution list
-  permanently (currently just omitted, not resolved either way).
+- Compile end-to-end (pdflatex → bibtex → pdflatex → pdflatex) on a machine
+  with a LaTeX toolchain — not available in this dev environment, so
+  `main.tex` has not been test-compiled.
 
 ## Note on a mid-run CUDA crash
 

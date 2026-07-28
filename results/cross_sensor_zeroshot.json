@@ -1,0 +1,26 @@
+{
+  "note": "Zero-shot: EO-trained emadet_final_best.pt (spatial-bbox, no CBAM), no fine-tuning, evaluated directly on thermal-IR Anti-UAV410 patches.",
+  "checkpoint": "C:\\Users\\enesm\\Desktop\\emadet\\emadetforspringer\\results\\emadet_final_best.pt",
+  "results": {
+    "val": {
+      "map50": 52.046746015548706,
+      "map75": 16.06297791004181,
+      "map50_95": 21.821007132530212,
+      "precision": 95.31027103966994,
+      "recall": 86.29318695372469,
+      "f1": 90.57786810652766,
+      "mean_iou": 60.557516969381055,
+      "n_samples": 12388
+    },
+    "test": {
+      "map50": 39.37960863113403,
+      "map75": 11.797688901424408,
+      "map50_95": 15.768353641033173,
+      "precision": 95.53064699069905,
+      "recall": 80.11661113660023,
+      "f1": 87.14729479782038,
+      "mean_iou": 56.641730541825375,
+      "n_samples": 16808
+    }
+  }
+}

@@ -166,8 +166,16 @@ standalone, without needing a dataset.
 
 ## Roadmap
 
-- [ ] Cross-sensor (EO/thermal-IR) generalization — blocked on sourcing a thermal UAV
-      dataset; no fabricated results will be reported.
+- [x] Cross-sensor (EO/thermal-IR) generalization — built from Anti-UAV410
+      (`src/build_thermal_dataset.py`; 27,768/12,388/16,808 train/val/test patches,
+      video-level split preserved, same-frame hard negatives). Zero-shot EO→thermal
+      transfer measured (`src/cross_sensor_eval.py`,
+      `results/cross_sensor_zeroshot.json`): mAP@0.5 39.4% (test) / 52.1% (val),
+      Recall 80.1% (test) / 86.3% (val), Precision ~95.5% both — vs. 96.08%
+      in-domain EO recall. Thermal-from-scratch reference (`src/train_thermal_scratch.py`,
+      N=5 seeds, `results/thermal/controlled_comparison.json`): mAP@0.5 89.52±0.93%,
+      Recall 91.64±0.41%, Precision 97.55±0.39% — confirms the zero-shot gap is a real
+      domain-shift effect, not an architectural ceiling.
 - [x] ONNX export + latency benchmark (this machine, as a proxy for edge hardware)
 - [ ] Vivado HLS synthesis of Gate 1/2 + Block 1 on Zynq-7020 (LUT/BRAM/power) — requires
       a machine with the Vivado HLS toolchain; C++ source is prepared but not yet
