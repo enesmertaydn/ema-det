@@ -131,36 +131,33 @@ present in the conference version.}
 Asymmetric threats posed by Low-Slow-Small (LSS) class Unmanned Aerial
 Vehicles (UAVs) to civilian and military critical infrastructure require an
 extremely fast and reliable ``sense-decide-act'' loop in modern autonomous
-air-defense systems~\cite{luo2021threat,aydin2025aads}. Electro-optical (EO) sensors today
-are typically 4K ($3840\times2160$) or higher resolution; processing such
-high-resolution video streams directly and in full-frame on edge devices
-using standard deep CNNs is infeasible in real time due to bandwidth and
-memory constraints~\cite{qasaimeh2019comparing}.
-
-To alleviate this pixel load, fielded autonomous systems typically use a
-two-stage cascade~\cite{fouda2022lightweight}. A first stage (radar priors,
-acoustic sensors, or simple motion/background-subtraction algorithms)
-identifies candidate Regions of Interest (RoI) in the frame. A second stage
-crops these small patches (commonly $64\times64$ or $128\times128$ pixels)
-and feeds them to a neural network for verification.
+air-defense systems~\cite{luo2021threat,aydin2025aads}. EO sensors today
+are typically 4K ($3840\times2160$) or higher; processing such
+high-resolution streams directly and in full-frame on edge devices using
+standard deep CNNs is infeasible in real time due to bandwidth and memory
+constraints~\cite{qasaimeh2019comparing}. To alleviate this, fielded
+autonomous systems typically use a two-stage
+cascade~\cite{fouda2022lightweight}: a first stage (radar priors, acoustic
+sensors, or motion/background-subtraction) identifies candidate RoIs, and
+a second stage crops small patches (commonly $64\times64$ or
+$128\times128$ pixels) and feeds them to a network for verification.
 
 Prior work in this space commonly adapts general-purpose detectors (the
 YOLO family, SSD) — originally developed for full-frame optical/aerial
 object detection~\cite{li2020object} — to the RoI-verification
 task~\cite{achmadiah2025energy,cao2023improved}. We argue, and demonstrate
 empirically, that RoI verification in a two-stage system is \emph{not}
-simply a scaled-down detection problem. On edge devices, memory bandwidth is
-a more critical bottleneck than raw compute (GFLOPs)~\cite{qasaimeh2019comparing};
-even edge-compressed YOLO variants (e.g.\ YOLO-Nano) run into resource
-limits and energy--performance bottlenecks on FPGA-class
-hardware~\cite{adiono2021low,zhang2022apply}. Architectures designed for full-frame
-operation, compressed into a micro-input regime, suffer spatial feature loss
-from their deep global-pooling stages and asymmetric data flow.
-
-Since total system recall in a two-stage architecture is
-$R_{\text{total}} = R_{\text{proposal}} \times R_{\text{verifier}}$, a
-verifier's false negative is a system-level miss. This makes recall, not
-mAP, the design-critical metric for the second stage.
+simply a scaled-down detection problem: on edge devices, memory bandwidth
+is a more critical bottleneck than raw compute~\cite{qasaimeh2019comparing};
+even edge-compressed YOLO variants run into resource limits and
+energy--performance bottlenecks on FPGA-class
+hardware~\cite{adiono2021low,zhang2022apply}. Architectures designed for
+full-frame operation, compressed into a micro-input regime, suffer
+spatial feature loss from their deep global-pooling stages and asymmetric
+data flow. Since total system recall is $R_{\text{total}} =
+R_{\text{proposal}} \times R_{\text{verifier}}$, a verifier's false
+negative is a system-level miss, making recall — not mAP — the
+design-critical metric for the second stage.
 
 \paragraph{Contributions.} (1) We formalize the RoI-verification problem
 and show that full-frame attention carries a training-stability cost in
@@ -301,7 +298,7 @@ throughout this paper; the pooled-vector configuration remains available
 (\texttt{use\_spatial\_bbox=False} in \texttt{ema\_det.py}).
 
 \begin{table*}[t]
-\caption{Bounding-box head ablation, EMA-Det (final, no CBAM), $N{=}5$ seeds, identical protocol.}\label{tab:spatialbbox}
+\caption{Bounding-box head ablation, EMA-Det (final, no CBAM), $N{=}5$ seeds.}\label{tab:spatialbbox}
 \resizebox{\linewidth}{!}{%
 \begin{tabular}{lcccc}
 \toprule
@@ -679,7 +676,7 @@ across modalities, while EO/thermal-IR silhouette shift accounts for a
 non-trivial fraction of missed detections.
 
 \begin{table*}[t]
-\caption{Zero-shot EO$\to$thermal transfer (no fine-tuning).}\label{tab:crosssensor}
+\caption{Zero-shot EO$\to$thermal transfer (no fine-tuning) and thermal-from-scratch reference ($N{=}5$ seeds, mean$\pm$std).}\label{tab:crosssensor}
 \resizebox{\linewidth}{!}{%
 \begin{tabular}{lccccc}
 \toprule
@@ -687,6 +684,7 @@ Split & mAP@0.5 & mAP@0.75 & mAP@.5:.95 & Precision & Recall \\
 \midrule
 Val (n=12{,}388)  & 52.05\% & 16.06\% & 21.82\% & 95.31\% & 86.29\% \\
 Test (n=16{,}808) & 39.38\% & 11.80\% & 15.77\% & 95.53\% & 80.12\% \\
+Thermal-scratch & $89.52{\pm}0.93\%$ & $53.43{\pm}3.42\%$ & $51.82{\pm}1.62\%$ & $97.55{\pm}0.39\%$ & $91.64{\pm}0.41\%$ \\
 \botrule
 \end{tabular}}
 \end{table*}
@@ -694,7 +692,7 @@ Test (n=16{,}808) & 39.38\% & 11.80\% & 15.77\% & 95.53\% & 80.12\% \\
 \textbf{Thermal-from-scratch reference.} To bound the zero-shot result,
 EMA-Det (final configuration) was trained from scratch on the thermal
 train/val split under the identical protocol used throughout this paper.
-Table~\ref{tab:thermalscratch} reports the result: mAP@0.5
+Table~\ref{tab:crosssensor}'s third row reports the result: mAP@0.5
 $89.52\pm0.93\%$, recall $91.64\pm0.41\%$, precision $97.55\pm0.39\%$, all
 above both the zero-shot and EO in-domain values. This establishes that
 the zero-shot gap reflects genuine domain shift rather than an
@@ -703,18 +701,6 @@ FLOPs) reaches 89.5\% mAP@0.5 trained directly on thermal data. The higher
 mAP/precision on thermal data are consistent with thermal-IR UAV
 signatures presenting as high-contrast, low-clutter targets relative to
 EO imagery.
-
-\begin{table*}[t]
-\caption{Thermal-from-scratch reference (EMA-Det, final config), $N=5$ seeds, mean $\pm$ std.}\label{tab:thermalscratch}
-\resizebox{\linewidth}{!}{%
-\begin{tabular}{lcccc}
-\toprule
-mAP@0.5 & mAP@0.75 & mAP@.5:.95 & Precision & Recall \\
-\midrule
-$89.52\pm0.93\%$ & $53.43\pm3.42\%$ & $51.82\pm1.62\%$ & $97.55\pm0.39\%$ & $91.64\pm0.41\%$ \\
-\botrule
-\end{tabular}}
-\end{table*}
 
 \section{Limitations}\label{sec:limitations}
 \begin{itemize}
