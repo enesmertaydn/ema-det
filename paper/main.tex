@@ -6,13 +6,11 @@
 % sn-template/sn-article-template/sn-article.tex exactly (front matter
 % macros, \backmatter, Declarations section).
 %
-% NOT COMPILED: this development environment has no LaTeX installation
-% (pdflatex/xelatex/latex all confirmed absent), exactly like the C++
-% toolchain gap noted in hardware/README.md. This file has NOT been test-
-% compiled. Build it (pdflatex -> bibtex -> pdflatex -> pdflatex, matching
-% sn-jnl's user-manual.pdf instructions) on a machine with a LaTeX
-% distribution before trusting the output, fixing any syntax issues that
-% turn up -- do not assume this is submission-ready untouched.
+% COMPILED (2026-07-30): MiKTeX installed in this environment; a full
+% pdflatex -> bibtex -> pdflatex -> pdflatex pass succeeds with no
+% undefined references and no missing-citation/bibtex warnings. Real
+% compiled length is 13 pages -- over the 10-page SIVP limit confirmed by
+% the editor; a trim pass is still needed before submission.
 %
 % All numeric results below come from this repository's own reproduction
 % (see ../results/controlled_comparison.json, ../results/pr_curve.json,
@@ -62,6 +60,8 @@
 \usepackage{graphicx}
 \usepackage{booktabs}
 \usepackage{amsmath,amssymb}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc}
 
 \raggedbottom
 
@@ -350,13 +350,57 @@ Spatial feature map (default) & $\mathbf{58.03{\pm}1.60}$ & $\mathbf{24.07{\pm}2
 
 \begin{figure*}[t]
 \centering
-\includegraphics[width=0.55\linewidth]{architecture.png}
-\caption{EMA-Det architecture. Orange paths indicate early-exit
+\begin{tikzpicture}[
+  font=\sffamily\small,
+  node distance=6mm and 14mm,
+  main/.style={draw, rounded corners, align=center, minimum width=52mm,
+    minimum height=8mm, fill=blue!8, font=\sffamily\footnotesize},
+  b1/.style={draw, rounded corners, align=center, minimum width=52mm,
+    minimum height=8mm, fill=green!12, font=\sffamily\footnotesize},
+  io/.style={draw, rounded corners, align=center, minimum width=52mm,
+    minimum height=8mm, fill=black!5, font=\sffamily\footnotesize},
+  head/.style={draw, rounded corners, align=center, minimum width=52mm,
+    minimum height=11mm, fill=red!8, font=\sffamily\footnotesize},
+  gate/.style={draw, rounded corners, align=center, minimum width=24mm,
+    minimum height=8mm, fill=orange!20, font=\sffamily\footnotesize},
+  arr/.style={-{Latex[length=2mm]}, thick},
+  garr/.style={-{Latex[length=2mm]}, thick, orange!80!black, dashed}
+]
+\node[io]  (in)     {Input: $1\times128\times128$ (grayscale/thermal)};
+\node[b1]  (b1) [below=of in]
+  {Block 1 (Laplacian/Sobel init)\\Conv $1{\to}16$, $3{\times}3$ $\to$ $16\times64\times64$};
+\node[main](b2) [below=of b1]  {Block 2: Conv $16{\to}32{\to}32$, $32\times32\times32$};
+\node[main](b3) [below=of b2]  {Block 3: Conv $32{\to}64{\to}64$, $64\times16\times16$};
+\node[main](b4) [below=of b3]  {Block 4: Conv $64{\to}128{\to}128$, $128\times8\times8$};
+\node[main](b5) [below=of b4]
+  {Block 5: multi-scale dilated ($d{=}1,2$)\\fusion $\to$ $128\times4\times4$};
+\node[main](b6) [below=of b5]  {Block 6: Conv $128{\to}256{\to}256$, $256\times4\times4$};
+\node[head](hd) [below=of b6]
+  {Verification Head: GAP $\to$ Dropout(0.4)\\FC$\to$1 (cls) $\;\vert\;$ FC$\to$4 (bbox)};
+\node[io]  (out)    [below=of hd] {Output: $P(\text{UAV})\in[0,1]$ + box refinement};
+
+\node[gate](g1) [right=of b2] {Gate 1\\$1{\times}1$, GAP, FC};
+\node[gate](g2) [right=of b4] {Gate 2\\$1{\times}1$, GAP, FC};
+
+\draw[arr] (in) -- (b1);
+\draw[arr] (b1) -- (b2);
+\draw[arr] (b2) -- (b3);
+\draw[arr] (b3) -- (b4);
+\draw[arr] (b4) -- (b5);
+\draw[arr] (b5) -- (b6);
+\draw[arr] (b6) -- (hd);
+\draw[arr] (hd) -- (out);
+\draw[garr] (b2) -- (g1);
+\draw[garr] (b4) -- (g2);
+\draw[garr] (g1.east) -- ++(9mm,0) |- ($(out.east)+(0,2mm)$);
+\draw[garr] (g2.east) -- ++(4mm,0) |- ($(out.east)+(0,-2mm)$);
+\end{tikzpicture}\par\smallskip
+{\sffamily\footnotesize\color{orange!80!black} Dashed orange: early-exit route (background candidate halts and skips remaining blocks).}
+\caption{EMA-Det architecture. Orange dashed paths indicate early-exit
 routes; candidates confidently classified as background at Gate~1 or
-Gate~2 skip the remaining blocks. (Schematic regenerated from the
-implementation in \texttt{src/ema\_det.py} via
-\texttt{src/make\_architecture\_figure.py}; replace with a
-professionally typeset version before submission.)}\label{fig:arch}
+Gate~2 skip the remaining blocks (Eq.~4) and route directly to the
+output. Native vector diagram, matching the implementation in
+\texttt{src/ema\_det.py}.}\label{fig:arch}
 \end{figure*}
 
 \subsection{Loss Function}\label{sec:loss}

@@ -32,6 +32,16 @@ hardware/*_component/
 hardware/hls_component/
 hardware/_ide/
 
+# LaTeX build byproducts (regenerate via pdflatex -> bibtex -> pdflatex x2)
+paper/*.aux
+paper/*.log
+paper/*.bbl
+paper/*.blg
+paper/*.out
+paper/*.fls
+paper/*.fdb_latexmk
+paper/*.synctex.gz
+
 # Python
 __pycache__/
 *.pyc
