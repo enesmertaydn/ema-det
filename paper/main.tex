@@ -8,17 +8,18 @@
 %
 % COMPILED (2026-07-30): MiKTeX installed in this environment; a full
 % pdflatex -> bibtex -> pdflatex -> pdflatex pass succeeds with no
-% undefined references and no missing-citation/bibtex warnings. Initial
-% compiled length was 13 pages; after trimming redundant prose (Related
-% Work vs. body-section overlap) and converting the architecture and
-% PR-curve figures from full-width to single-column (freeing the facing
-% column for text), main text -- Introduction through Declarations --
-% now ends within page 9. Total compiled length is 11 pages because the
-% 28-entry reference list alone spans ~2.6 pages; this could not be
-% shortened by prose trimming (font-size tricks on the bibliography are
-% overridden by sn-jnl.cls). OPEN QUESTION: confirm with the editor
-% whether SIVP's 10-page limit counts the reference list or only the
-% main text -- if only main text, this draft already qualifies.
+% undefined references and no missing-citation/bibtex warnings.
+% Compiled length is exactly 10 pages (confirmed against the official
+% SIVP submission guidelines, which count text+figures+references
+% against the limit and explicitly allow the 10th page to contain only
+% references -- which is exactly how this draft's page 10 is composed).
+% Reached via: cutting Related Work / body-section prose overlap,
+% converting the architecture and PR-curve figures to single-column
+% (freeing the facing column for text), merging two result tables with
+% identical column structure, tightening prose throughout without
+% dropping any reported number/citation, and replacing three
+% "DOI not confirmed" bib notes with real DOIs independently verified
+% via the CrossRef API (not guessed from IEEE's numbering pattern).
 %
 % All numeric results below come from this repository's own reproduction
 % (see ../results/controlled_comparison.json, ../results/pr_curve.json,
@@ -118,15 +119,12 @@ reflects genuine domain shift rather than an architectural ceiling.}
 
 \section{Introduction}\label{sec:intro}
 
-\textit{This manuscript is an extended version of a paper accepted for
-presentation at the IEEE Signal Processing and Communications
-Applications Conference (SIU 2026)~\cite{aydin2026emadetconf}; conference
-proceedings publication is pending at the time of this submission. This
-extended version reports results under a controlled, unified training
-protocol (Sections~\ref{sec:cbam} and~\ref{sec:leakage}), adds a decoupled
-spatial bounding-box head (Section~\ref{sec:spatialbbox}), and adds a
-cross-sensor generalization study (Section~\ref{sec:crosssensor}) not
-present in the conference version.}
+\textit{This manuscript extends a paper accepted at IEEE SIU
+2026~\cite{aydin2026emadetconf} (proceedings pending), adding a
+controlled, unified training protocol (Sections~\ref{sec:cbam}
+and~\ref{sec:leakage}), a decoupled spatial bounding-box head
+(Section~\ref{sec:spatialbbox}), and a cross-sensor generalization study
+(Section~\ref{sec:crosssensor}) absent from the conference version.}
 
 Asymmetric threats posed by Low-Slow-Small (LSS) class Unmanned Aerial
 Vehicles (UAVs) to civilian and military critical infrastructure require an
@@ -428,26 +426,21 @@ source-level deduplication, are superseded and should not be compared
 directly.
 
 \subsection{Training Protocol}\label{sec:protocol}
-All models are trained with AdamW (weight decay $10^{-4}$), 5-epoch linear
-warmup followed by cosine annealing, batch size 16, gradient clipping at
-norm 5.0. Early stopping uses patience 20 on validation mAP@0.5, for up
-to 150 epochs. All reported results, including the CBAM ablation, use
-$N=5$ seeds $\{42, 7, 123, 2024, 31415\}$ under this identical protocol,
-so that architectural comparisons are not confounded by differing
-training budgets.
-
-Augmentation excludes Mosaic/MixUp (destroys small-target shape at
-$128\times128$); we use horizontal flip, brightness/contrast jitter,
-directional motion blur, Gaussian noise, small-angle rotation, and coarse
-dropout.
+All models are trained with AdamW (weight decay $10^{-4}$), 5-epoch
+linear warmup, cosine annealing, batch size 16, and gradient clipping
+(norm 5.0), with early stopping (patience 20 on val.\ mAP@0.5, up to 150
+epochs). All results, including the CBAM ablation, use $N{=}5$ seeds
+$\{42, 7, 123, 2024, 31415\}$ under this identical protocol. Augmentation
+excludes Mosaic/MixUp (destroys small-target shape at $128\times128$);
+we use horizontal flip, brightness/contrast jitter, motion blur,
+Gaussian noise, small-angle rotation, and coarse dropout.
 
 \section{Results}\label{sec:results}
 
 \subsection{CBAM: A Stability Trade-off, Not a Uniform Penalty}\label{sec:cbam}
 
-Table~\ref{tab:cbam} reports the controlled $N=5$ comparison, with both
-configurations using the default spatial bbox head
-(Section~\ref{sec:spatialbbox}).
+Table~\ref{tab:cbam} reports the controlled $N=5$ comparison (both with
+the default spatial bbox head, Section~\ref{sec:spatialbbox}).
 
 \begin{table*}[t]
 \caption{Controlled comparison, identical $N{=}5$-seed/150-epoch protocol, both with the default spatial bbox head. Mean $\pm$ std, test set.}\label{tab:cbam}
@@ -463,21 +456,17 @@ EMA-Det + CBAM & $57.82{\pm}2.12$ & $24.77{\pm}3.88$ & $28.30{\pm}2.07$ & $\math
 \end{table*}
 
 With the spatial bbox head in place, mAP@0.5, mAP@0.75, and mAP@0.5:0.95
-are statistically indistinguishable between the two configurations
-(differences within one combined standard deviation). CBAM's remaining
-measurable cost is recall: $3$ points lower on average
-($93.23\pm1.37\%$ vs.\ $96.08\pm0.47\%$) and moderately less stable across
-seeds (std $1.37$ vs.\ $0.47$). Under the legacy pooled-vector box head, by
-contrast, 2 of 5 CBAM seeds collapsed to 74--79\% recall (std $8.85$); no
-such collapse occurs under the spatial-bbox head, where the worst CBAM run
-reaches 90.8\% recall.
-
-These results indicate that CBAM's localization contribution under the
-pooled-vector head substituted, in part, for spatial information the
-pooled feature had discarded; once that information is restored directly
-via the spatial bbox head, at negligible parameter and FLOPs cost, CBAM
-contributes no additional localization benefit and retains a smaller but
-consistent recall cost. On this basis, the final architecture omits CBAM.
+are statistically indistinguishable between configurations. CBAM's
+remaining cost is recall: $3$ points lower on average
+($93.23\pm1.37\%$ vs.\ $96.08\pm0.47\%$) and less stable across seeds
+(std $1.37$ vs.\ $0.47$); under the legacy pooled-vector head, 2 of 5
+CBAM seeds collapsed to 74--79\% recall (std $8.85$), a collapse that
+does not occur under the spatial-bbox head (worst run 90.8\%). This
+indicates CBAM's pooled-vector-head localization benefit substituted for
+spatial information the pooling itself discarded; once restored via the
+spatial bbox head, CBAM adds no further localization benefit and retains
+only the smaller recall cost above. The final architecture omits CBAM on
+this basis.
 
 \subsection{Comparison with Lightweight Baselines}\label{sec:baselines}
 
@@ -567,51 +556,42 @@ across the two configurations once the spatial bbox head is in place.
 \subsection{Hardware Feasibility Analysis}\label{sec:hardware}
 
 This section reports measured results together with a static resource
-analysis scoping the network's FPGA mapping. Both configurations (final
-and CBAM, spatial-bbox architecture) were exported to ONNX and verified
-against PyTorch (max.\ absolute difference $1.7\times10^{-5}$ /
-$1.3\times10^{-5}$, 20 random inputs). At batch size 1 — matching the
-single-RoI streaming deployment pattern — PyTorch-CUDA reaches
-378.7/248.8 FPS (final/CBAM), while ONNX Runtime's CPU provider reaches
-738.1/646.5 FPS, exceeding the GPU figures. This inversion is expected:
-GPU gains come from batch parallelism, and a sequential, early-exit-gated
-single-RoI workload (most candidates exit after one or two blocks,
-Table~\ref{tab:earlyexit}) does not present the uniform large-batch load
-GPUs are optimized for. The CPU/ONNX and FPGA figures below are
-accordingly the representative reference points for edge deployment; GPU
-numbers are reported for completeness. The spatial bbox head's
-additional flatten-and-linear layer costs some throughput relative to
-the legacy head (465.0/262.6 FPS, same batch-1 GPU setting), reported
+analysis scoping the network's FPGA mapping. Both configurations were
+exported to ONNX and verified against PyTorch (max.\ absolute difference
+$1.7\times10^{-5}$/$1.3\times10^{-5}$, 20 random inputs). At batch size 1
+(matching single-RoI streaming deployment), PyTorch-CUDA reaches
+378.7/248.8 FPS (final/CBAM) while ONNX Runtime's CPU provider reaches
+738.1/646.5 FPS — higher than GPU, since GPU gains come from batch
+parallelism and a sequential, early-exit-gated single-RoI workload
+(Table~\ref{tab:earlyexit}) does not present a large-batch load. The
+CPU/ONNX and FPGA figures below are therefore the representative
+reference points for edge deployment. The spatial bbox head costs some
+throughput over the legacy head (465.0/262.6 FPS, same setting), reported
 alongside its accuracy gain (Section~\ref{sec:spatialbbox}).
 
 A per-layer translation of the Block1$\to$Gate1$\to$Block4$\to$Gate2 path
-into synthesizable C++, using trained (BatchNorm-folded) weights and
-validated against PyTorch on real test images, is provided in
-\texttt{hardware/}. A static element-count$\times$bit-width analysis
-(\texttt{src/estimate\_hls\_bram.py}) of this direct, fully-buffered
+into synthesizable C++ (trained, BatchNorm-folded weights, validated
+against PyTorch) is provided in \texttt{hardware/}. A static bit-width
+analysis (\texttt{src/estimate\_hls\_bram.py}) of this fully-buffered
 translation identified on-chip memory as the primary constraint for the
-Zynq-7020 (630~KB BRAM budget), with Block~1 alone accounting for
-30.3\% of the estimated total, which directly informed the streaming
-redesign below.
+Zynq-7020 (630~KB budget), Block~1 alone accounting for 30.3\% of the
+total — directly informing the streaming redesign below.
 
 Block~1 was restructured around a 3-row line buffer (768~B, replacing
 the full-frame buffer) and synthesized with Vitis Unified IDE 2025.2
-(Zynq-7020, part \texttt{xc7z020clg484-1}, 10~ns clock target).
-C-simulation against the PyTorch \texttt{Block1} reference (post-LeakyReLU,
-two test images, $16\times128\times128$ values each) confirms numerical
+(Zynq-7020, \texttt{xc7z020clg484-1}, 10~ns clock target). C-simulation
+against the PyTorch \texttt{Block1} reference confirms numerical
 correctness in both representations: max.\ absolute difference
-$3.3\times10^{-6}$ in \texttt{float} and $1.48\times10^{-2}$ in
-\texttt{ap\_fixed<16,6>}, consistent with expected input-activation
-quantization noise (weights/accumulator use the wider
-\texttt{ap\_fixed<32,12>}). Table~\ref{tab:block1synth} reports resource
-utilization for \emph{both} representations, since the contrast is
-informative: the unquantized \texttt{float} build already fits the BRAM
-budget but overshoots DSP/LUT by more than $3\times$/$2\times$ —
-floating-point is simply far more expensive in hardware than fixed-point.
-Quantizing to \texttt{ap\_fixed<16,6>}, together with multiplying at
-native 16-bit width rather than pre-widened operands (cutting DSP use by
-$2.1\times$ at equal accuracy), brings every resource under budget, with
-$37\%$ DSP headroom remaining.
+$3.3\times10^{-6}$ (\texttt{float}) and $1.48\times10^{-2}$
+(\texttt{ap\_fixed<16,6>}), consistent with input-activation quantization
+noise (accumulator uses the wider \texttt{ap\_fixed<32,12>}).
+Table~\ref{tab:block1synth} reports both representations: unquantized
+\texttt{float} fits the BRAM budget but overshoots DSP/LUT by more than
+$3\times$/$2\times$ — floating-point is far more expensive in hardware
+than fixed-point. Quantizing to \texttt{ap\_fixed<16,6>} and multiplying
+at native width rather than pre-widened operands ($2.1\times$ fewer
+DSPs, equal accuracy) brings every resource under budget, with $37\%$
+DSP headroom.
 
 \begin{table*}[t]
 \caption{Block~1 (line-buffered streaming kernel) resource utilization, Vitis HLS 2025.2, Zynq-7020 (\texttt{xc7z020clg484-1}), 10~ns clock target. \% column is utilization against the part's total budget.}\label{tab:block1synth}
@@ -634,35 +614,31 @@ measured, deterministic latency of 36{,}489 clock cycles
 alone). This is a real, tool-verified result for one layer — confirmed
 numerically, by resource synthesis, and by RTL co-simulation.
 
-This result covers only Block~1 (one of six blocks plus two gates), and
-its approach does not simply repeat for the rest of the network. Block~1
-fully unrolls every MAC (one physical multiplier per multiply-accumulate,
-II$=1$), costing 145 DSPs for its $144$ MACs/pixel — affordable only with
-one input channel. MACs/pixel scale with channel depth: Block~2's second
-conv needs $9{,}216$ MACs/pixel ($\sim$42$\times$ the chip's entire DSP
-budget under the same strategy), and Block~6's second conv needs
-$589{,}824$ ($\sim$2{,}680$\times$). Block~2 onward therefore require a
-time-multiplexed MAC array (a systolic/PE-array design reused over many
-cycles per output) rather than full unrolling — not yet designed for any
-layer past Block~1. We report this transparently: one layer's
-restructuring is fully verified end-to-end; the rest of the network's
-hardware mapping is identified and quantified, not assumed to generalize.
+This result covers only Block~1 (of six blocks plus two gates) and does
+not simply repeat for the rest of the network: Block~1 fully unrolls
+every MAC (one multiplier per MAC, II$=1$), costing 145 DSPs for 144
+MACs/pixel — affordable only with one input channel. MACs/pixel scale
+with channel depth: Block~2's second conv needs $9{,}216$ MACs/pixel
+($\sim$42$\times$ the chip's DSP budget under the same strategy), and
+Block~6's needs $589{,}824$ ($\sim$2{,}680$\times$). Block~2 onward
+therefore require a time-multiplexed MAC array (a systolic/PE-array
+design reused over cycles) rather than full unrolling — not yet designed
+past Block~1. This is reported transparently: one layer is fully
+verified end-to-end; the rest of the network's hardware mapping is
+quantified but unsolved.
 
 \subsection{Cross-Sensor Generalization}\label{sec:crosssensor}
 
-To assess how EMA-Det's EO-domain performance transfers to an unseen
-sensor modality, we constructed an RoI verification dataset from the
-Anti-UAV410 thermal-IR benchmark~\cite{antiuav410}, using its native
-video-level train/val/test split (frames from a given video remain within
-a single partition). One video (\texttt{02\_6319}) was found to span both
-partitions under non-overlapping frame ranges and was excluded from both
-as a precaution. Positive patches were cropped around the annotated drone
-box (context multiplier $3\times$, resized to $128\times128$); negatives
-combine drone-absent frames with same-frame hard negatives cropped near
-the drone but not overlapping it, mirroring the EO pipeline's
-negative-mining strategy (Section~\ref{sec:leakage}). Every 15th frame of
-each video was sampled to limit near-duplicate adjacent frames. The
-resulting dataset comprises 27{,}768 / 12{,}388 / 16{,}808 train/val/test
+To assess EO-domain transfer to an unseen modality, an RoI verification
+dataset was constructed from the Anti-UAV410 thermal-IR
+benchmark~\cite{antiuav410}, using its native video-level train/val/test
+split (one video, \texttt{02\_6319}, spanned both partitions and was
+excluded as a precaution). Positive patches were cropped around the
+annotated drone box ($3\times$ context, resized to $128\times128$);
+negatives combine drone-absent frames with same-frame hard negatives,
+mirroring the EO pipeline's negative-mining strategy
+(Section~\ref{sec:leakage}). Every 15th frame was sampled to limit
+near-duplicates, yielding 27{,}768/12{,}388/16{,}808 train/val/test
 patches.
 
 \textbf{Zero-shot transfer.} The EO-trained final checkpoint
@@ -703,41 +679,35 @@ signatures presenting as high-contrast, low-clutter targets relative to
 EO imagery.
 
 \section{Limitations}\label{sec:limitations}
-\begin{itemize}
-\item \textbf{Dataset size.} The deduplication protocol
-(Section~\ref{sec:leakage}) yields 4{,}136 patches from a raw pool of
-8{,}793 source photographs, trading raw sample count for evaluation
-rigor; expanding the raw pool with verified-non-duplicate UAV photography
-is identified as future work.
-\item \textbf{Cross-sensor generalization.} Section~\ref{sec:crosssensor}
+\textbf{Dataset size:} the deduplication protocol (Section~\ref{sec:leakage})
+yields 4{,}136 patches from a raw pool of 8{,}793 photographs, trading
+sample count for evaluation rigor; expanding the raw pool is future work.
+\textbf{Cross-sensor generalization:} Section~\ref{sec:crosssensor}
 reports zero-shot and from-scratch results on a single benchmark
 (Anti-UAV410); domain adaptation and multi-sensor joint training were not
-evaluated.
-\item \textbf{Hardware validation.} Section~\ref{sec:hardware} reports a
-synthesized, cosimulation-verified implementation of Block~1 only; the
-time-multiplexed MAC array required for Blocks~2--6 remains future work.
-\end{itemize}
+evaluated. \textbf{Hardware validation:} Section~\ref{sec:hardware}
+synthesizes and cosimulation-verifies Block~1 only; the time-multiplexed
+MAC array for Blocks~2--6 remains future work.
 
 \section{Conclusion}\label{sec:conclusion}
 This extended version reports EMA-Det under a controlled, $N{=}5$-seed
 protocol on a source-level-split, deduplicated dataset. Decoupling the
 bounding-box head from the pooled classification feature improves
-localization and accounts for most of CBAM's previously observed benefit,
-indicating that benefit substituted for discarded spatial information
-rather than adding an independent localization gain. Comparison against a
-full detection architecture (YOLOv8n) and lightweight backbones
-establishes that mAP alone is an unreliable indicator of second-stage
-verifier quality, since recall — not mAP — determines system-level
-performance under a two-stage cascade. Cross-sensor evaluation on
-Anti-UAV410 quantifies a genuine but non-catastrophic EO$\to$thermal
-domain-shift gap. A hardware feasibility analysis, including a
-synthesized and resource-verified implementation of the network's first
-block, scopes the work remaining for a full FPGA mapping. We release the
+localization and accounts for most of CBAM's previously observed benefit
+— indicating that benefit substituted for discarded spatial information
+rather than an independent localization gain. Comparison against a full
+detection architecture (YOLOv8n) and lightweight backbones establishes
+that mAP alone is an unreliable indicator of verifier quality, since
+recall — not mAP — determines system-level performance under a
+two-stage cascade. Cross-sensor evaluation on Anti-UAV410 quantifies a
+genuine but non-catastrophic EO$\to$thermal domain-shift gap, and a
+hardware feasibility analysis — including a synthesized,
+resource-verified implementation of the network's first block — scopes
+the work remaining for a full FPGA mapping. We release the
 dataset-construction and evaluation tooling
 (\texttt{build\_dataset\_clean.py}, \texttt{check\_leakage.py},
 \texttt{check\_raw\_duplicates.py}) to support reproducible construction
-of similar two-stage RoI-verification datasets from web-aggregated source
-imagery.
+of similar datasets from web-aggregated source imagery.
 
 \backmatter
 
@@ -753,29 +723,26 @@ Not applicable.
 % session beyond what is directly evidenced by the repository.
 
 \begin{itemize}
-\item \textbf{Funding:} Not applicable -- confirm with authors whether any
-grant, scholarship, or institutional funding supported this work.
+\item \textbf{Funding:} Not applicable -- confirm with authors.
 \item \textbf{Conflict of interest/Competing interests:} The authors
 declare no competing interests. \emph{(Confirm this is accurate.)}
 \item \textbf{Ethics approval and consent to participate:} Not applicable
-(no human or animal subjects; the UAV imagery datasets used are publicly
-available third-party collections, see Section~\ref{sec:leakage}).
+(no human/animal subjects; UAV imagery is from public third-party
+collections, Section~\ref{sec:leakage}).
 \item \textbf{Consent for publication:} Not applicable.
-\item \textbf{Data availability:} The dataset construction methodology is
-described in Section~\ref{sec:leakage}; code to regenerate the dataset
-from cited public sources is provided (see Code availability). Raw source
-imagery is drawn from the public Kaggle~\cite{dasmehdixtr_kaggle} and
-Roboflow Universe~\cite{mohsen_roboflow} collections cited there. The
-thermal-IR cross-sensor data (Section~\ref{sec:crosssensor}) is the public
-Anti-UAV410 benchmark~\cite{antiuav410}.
+\item \textbf{Data availability:} Dataset construction is described in
+Section~\ref{sec:leakage}; regeneration code is provided (see Code
+availability). Raw imagery is from the public
+Kaggle~\cite{dasmehdixtr_kaggle} and Roboflow
+Universe~\cite{mohsen_roboflow} collections; thermal cross-sensor data
+(Section~\ref{sec:crosssensor}) is the public Anti-UAV410
+benchmark~\cite{antiuav410}.
 \item \textbf{Materials availability:} Not applicable.
-\item \textbf{Code availability:} All model, training, dataset-construction,
-and evaluation code is available in a version-controlled repository
-(GitHub link to be inserted upon publication/acceptance -- not yet made
-public at the time of this draft).
+\item \textbf{Code availability:} All model, training,
+dataset-construction, and evaluation code is in a version-controlled
+repository (GitHub link to be inserted upon acceptance -- not yet public).
 \item \textbf{Author contribution:} \emph{Placeholder -- authors to state
-each contributor's role (e.g., conceptualization, methodology, software,
-validation, writing) per journal guidance.}
+each contributor's role per journal guidance.}
 \end{itemize}
 
 \bibliography{refs}
