@@ -571,14 +571,23 @@ Fixed-point (\texttt{ap\_fixed<16,6>}, quantized \& optimized) & 0 & 0\% & 145 &
 \end{tabular}}
 \end{table*}
 
-This is a real, tool-verified result for one layer, not an estimate —
-but it covers only Block~1 (one of six blocks plus two gates), and its
-approach does not simply repeat for the rest of the network. Block~1's
-kernel fully unrolls every MAC (one physical multiplier per
-multiply-accumulate, pipelined at II$=1$), which cost 145 DSPs for its
-$16\times1\times3\times3=144$ MACs/pixel — affordable only because
-Block~1 has just one input channel. MACs/pixel grow with channel depth at
-every subsequent layer: Block~2's second conv already needs
+C/RTL co-simulation subsequently confirmed that the generated RTL itself
+(not merely HLS's own C-simulation of the pre-synthesis source) reproduces
+this result: \texttt{2/2} images passed with the same tolerance, at a
+measured, deterministic latency of 36{,}489 clock cycles
+($\approx$365\,$\mu$s/image at the 10~ns clock target, $\approx$2{,}740
+images/s for this kernel alone). This is a real, tool-verified result for
+one layer, not an estimate — numerically confirmed in both float and
+fixed point, resource-budget-confirmed by real synthesis, and now
+RTL-confirmed by real co-simulation.
+
+This result covers only Block~1 (one of six blocks plus two gates),
+however, and its approach does not simply repeat for the rest of the
+network. Block~1's kernel fully unrolls every MAC (one physical
+multiplier per multiply-accumulate, pipelined at II$=1$), which cost 145
+DSPs for its $16\times1\times3\times3=144$ MACs/pixel — affordable only
+because Block~1 has just one input channel. MACs/pixel grow with channel
+depth at every subsequent layer: Block~2's second conv already needs
 $32\times32\times9=9{,}216$ MACs/pixel ($\sim$42$\times$ the entire
 chip's DSP budget at the same one-per-MAC strategy), and Block~6's second
 conv needs $256\times256\times9=589{,}824$ ($\sim$2{,}680$\times$). Block~2
@@ -586,11 +595,10 @@ onward therefore require a fundamentally different structure — a small,
 fixed-size, time-multiplexed MAC array (a systolic/PE-array design reused
 over many cycles per output, trading latency for area) rather than full
 unrolling — which has not yet been designed for any layer past Block~1.
-C/RTL co-simulation (validating the actual synthesized RTL, not just
-HLS's own C-simulation) for Block~1 is also still outstanding. We report
-this status transparently: one layer's line-buffer restructuring is
-fully verified end-to-end, the rest of the network's hardware mapping is
-identified, quantified, and unsolved, not silently assumed to generalize.
+We report this status transparently: one layer's line-buffer
+restructuring is fully verified end-to-end, the rest of the network's
+hardware mapping is identified, quantified, and unsolved, not silently
+assumed to generalize.
 
 \subsection{Cross-Sensor Generalization}\label{sec:crosssensor}
 
@@ -678,10 +686,11 @@ reference on a single benchmark (Anti-UAV410); domain adaptation and
 multi-sensor joint training were not evaluated and are natural extensions
 given the from-scratch result.
 \item \textbf{Hardware validation.} Section~\ref{sec:hardware} reports a
-synthesized and resource-verified implementation (float and
-\texttt{ap\_fixed<16,6>}) of Block~1 against Zynq-7020 resource budgets.
-C/RTL co-simulation for Block~1 and the time-multiplexed MAC-array design
-required for Blocks~2 through~6 remain future work.
+synthesized, resource-verified, and C/RTL-cosimulation-verified
+implementation (float and \texttt{ap\_fixed<16,6>}) of Block~1 against
+Zynq-7020 resource budgets. The time-multiplexed MAC-array design
+required for Blocks~2 through~6 remains future work; no other layer has
+been synthesized.
 \end{itemize}
 
 \section{Conclusion}\label{sec:conclusion}

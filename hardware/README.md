@@ -1,9 +1,31 @@
 # Hardware validation — status
 
-**Nothing in this directory has been compiled, simulated, or synthesized.**
-This development environment has no C/C++ toolchain (`g++`/`clang++`/`cl`/`gcc`
-all confirmed absent) and no Vivado/Vitis HLS installation. Every number in
-this README's "still needed" list is a real gap, not a formality.
+**Block1's streaming kernel (`hls/block1_streaming.cpp`) is now fully
+closed: real C-simulation (float and fixed-point), real synthesis, and
+real C/RTL co-simulation, all passing.** This was all done from a plain
+Windows machine with no C/C++ toolchain of its own, using Vitis Unified
+IDE 2025.2's own bundled tools (see the iteration history below) — nothing
+in this directory was ever compiled, simulated, or synthesized in the
+*development* environment this repo's Python/paper work was otherwise done
+in (no `g++`/`clang++`/`cl`/`gcc` there either). `ema_det_gates.cpp` (the
+flat, non-streaming translation of the rest of the network) and Blocks~2
+through~6 have not been run through any of these steps.
+
+## Status: Block1's streaming kernel is fully verified — C/RTL cosim PASS
+
+**2026-07-30, Vitis Unified IDE 2025.2, Zynq-7020 (`xc7z020clg484-1`), 10ns
+clock target.** C/RTL co-simulation (`cosim_design` / "C/RTL COSIMULATION
+> Run") passed: the actual generated RTL (Verilog), not just HLS's own
+C-simulation, reproduces the same result as the C-level golden-reference
+check — `2/2 images passed`, max|diff| 1.48e-2/1.44e-2 (tol=2e-2),
+`0/262144` mismatches each. Measured RTL latency: **36{,}489 clock cycles**
+(min = avg = max — deterministic, no data-dependent branching in this
+kernel), i.e. $\approx$365$\mu$s/image at the 10ns clock target, or
+$\approx$2{,}740 images/s for Block1's hardware pipeline alone. This is
+the project's first real, end-to-end closed hardware result for any part
+of EMA-Det: numerically verified in float and fixed point, resource
+budget verified by real synthesis (not estimated), and now RTL-verified
+by real co-simulation — nothing left unconfirmed for Block1 specifically.
 
 ## What exists
 
@@ -101,24 +123,23 @@ than multiplying at native `FixedT` (16-bit) width and only widening the
 same pattern in `nn_ops.h` (`conv2d_same`, `conv1x1`, `fully_connected`) —
 not yet re-synthesized to confirm.
 
-## What is explicitly NOT done yet, and must happen in this order
+## What is done, and what genuinely remains
 
 1. ~~Compile and run in float~~ / ~~synthesize~~ / ~~fix DSP
-   over-utilization~~ — **all done for `block1_streaming_forward`** (see
-   above, three iterations, fully within budget). `main_tb.cpp` (the flat
-   Gate1+Gate2 translation covering the rest of the network) still needs
-   its own run of any of these steps.
-2. **C/RTL co-simulation** for `block1_streaming_forward`
-   (`cosim_design` / "C/RTL COSIMULATION > Run") against the same golden
-   reference — C-sim so far only validates the pre-synthesis C++ against
-   HLS's own compiler; cosim is the check that the actual generated RTL
-   (what would go on the chip) still matches.
-3. Only after step 2 passes does it make sense to cite Block1's
-   resource/latency numbers in the paper as final.
-4. Everything else in the network (Block2 through Gate2) still uses the
-   flat, non-streaming translation (`ema_det_gates.cpp`) and has not been
-   run through any of steps 1-2 above at all -- Block1 is one restructured
-   layer out of the whole network, not the whole story yet.
+   over-utilization~~ / ~~C/RTL co-simulation~~ — **all done for
+   `block1_streaming_forward`**, fully within budget and RTL-verified
+   (see above). Nothing further is needed to cite Block1's
+   accuracy/resource/latency numbers in the paper as final.
+2. `main_tb.cpp` (the flat, non-streaming translation of
+   Block1->Gate1->Block4->Gate2) has never been run through any of these
+   steps at all -- it exists as C++ source only.
+3. Everything past Block1 (Block2 through Block6, Gate1, Gate2) needs a
+   fundamentally different hardware structure before it can be
+   synthesized at all: a time-multiplexed, fixed-size MAC array (see the
+   scaling analysis further down this file), not the full-unroll strategy
+   that worked for Block1. This has not been designed, let alone
+   implemented -- Block1 is one real, closed result out of six blocks
+   plus two gates, not the whole network's story.
 
 ## Why Block1's approach (full per-pixel parallelism) cannot just repeat for Block2+
 
