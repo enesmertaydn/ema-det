@@ -177,6 +177,83 @@ of CBAM's previously observed benefit. (6) We measure cross-sensor
 thermal-from-scratch reference under the same controlled protocol,
 quantifying the domain-shift gap directly.
 
+\section{Related Work}\label{sec:related}
+
+\subsection{Two-Stage and Cascade Object Detection}
+Two-stage detectors separate region proposal from region
+classification/regression, historically trading latency for accuracy
+relative to single-stage designs~\cite{ren2015faster}. Cascade
+architectures extend this idea with successive stages of increasing IoU
+threshold to progressively refine localization
+quality~\cite{cai2018cascade}. Recent UAV-specific work follows the same
+two-stage principle at the system level: a lightweight proposal network
+generates candidate regions that a separate, typically heavier, network
+verifies~\cite{achmadiah2025energy,cao2023improved}. EMA-Det adopts this
+system-level split but targets the verification stage specifically,
+formalizing it as a distinct optimization problem governed by
+$R_{\text{total}} = R_{\text{proposal}} \times R_{\text{verifier}}$ rather
+than treating the verifier as a scaled-down general detector.
+
+\subsection{Efficient Backbones for Edge Deployment}
+Mobile-oriented backbones reduce parameter count and nominal FLOPs
+primarily via depthwise-separable or grouped
+convolutions~\cite{howard2019mobilenetv3} and channel-split/shuffle
+operations~\cite{ma2018shufflenet}, both designed against general-purpose
+mobile CPU/GPU cost models. FPGA-targeted accelerator work shows that
+these same operations complicate efficient hardware mapping: the reduced
+arithmetic intensity of depthwise-separable convolutions increases
+relative memory-bandwidth pressure on BRAM-constrained fabrics, motivating
+dedicated accelerator designs rather than a direct reuse of mobile-CPU
+backbones~\cite{zhao2024fpga}. EMA-Det's use of standard convolutions in a
+shallow, streaming-friendly backbone (Section~\ref{sec:baselines}) follows
+this hardware-mapping literature rather than the mobile-CPU efficiency
+literature, and Section~\ref{sec:hardware} reports real Vitis HLS
+synthesis results supporting that design choice for at least the first
+network stage.
+
+\subsection{Dynamic and Early-Exit Inference}
+Confidence-gated early-exit classifiers allow easy inputs to skip later
+network stages, reducing average-case
+compute~\cite{teerapittayanon2016branchynet,liang2024implementation}; a
+recent survey consolidates this line of work across architectures and
+exit-placement strategies~\cite{rahmath2024earlyexit}. Prior early-exit
+work is generally evaluated on general-purpose image classification, where
+the input distribution does not have a strong prior toward one class.
+EMA-Det's early-exit gates (Section~\ref{sec:gates}) instead exploit a
+domain-specific asymmetry particular to the RoI-verification setting: the
+large majority of candidate regions proposed for a small, sparse object
+class such as UAVs are confidently-background, so an early-exit mechanism
+converts this known asymmetric distribution directly into a measured
+latency advantage rather than a general-purpose accuracy/compute
+trade-off.
+
+\subsection{Attention and Small-Object Feature Preservation}
+Channel-and-spatial attention modules such as CBAM are widely used to
+recalibrate intermediate features at negligible parameter
+cost~\cite{woo2018cbam}. Separately, work on small-object and
+low-resolution detection has shown that standard strided convolutions and
+pooling discard spatial information disproportionately harmful to small
+objects, motivating stride-free downsampling
+alternatives~\cite{sunkara2022spdconv}. Section~\ref{sec:cbam} and
+Section~\ref{sec:spatialbbox} of this paper reach a related but distinct
+conclusion for the micro-input RoI-verification setting: under a pooled
+classification head, CBAM's apparent localization benefit is substantially
+attributable to information the pooling operation itself discards, and
+restoring that spatial information directly via a dedicated bbox head
+recovers most of the same benefit without CBAM's added training-stability
+cost.
+
+\subsection{Cross-Sensor Generalization for UAV Detection}
+Cross-modality UAV and drone detection across visible and infrared sensors
+has been studied both as a joint EO/IR fusion
+problem~\cite{sun2022dronevehicle} and, for the benchmark used in this
+paper, as a single-sensor thermal-IR detection and tracking
+problem~\cite{antiuav410}. This paper does not perform EO/IR fusion;
+instead, Section~\ref{sec:crosssensor} measures the zero-shot generalization
+gap of an EO-trained verifier evaluated directly on thermal-IR data from
+the same benchmark, quantifying domain shift under the controlled protocol
+used throughout the rest of the paper.
+
 \section{EMA-Det: Architecture and Method}\label{sec:method}
 
 \subsection{System-Level Latency Model}\label{sec:latency}
@@ -418,7 +495,8 @@ ShuffleNetV2 x0.5 (scratch) & $56.26{\pm}2.11$ & $25.68{\pm}1.37$ & $93.80{\pm}1
 \end{table*}
 
 Table~\ref{tab:baselines} supports the central claim of
-Section~\ref{sec:intro}. YOLOv8n — a full detection architecture with a
+Section~\ref{sec:intro}. YOLOv8n~\cite{jocher2023yolov8} — a full detection
+architecture with a
 multi-scale head and DFL-based box regression — reaches substantially
 higher mAP@0.5:0.95 than EMA-Det ($49.59\pm0.45\%$ vs.\
 $28.04\pm1.90\%$, ${\sim}1.8\times$), reflecting its localization
@@ -432,7 +510,8 @@ illustrates the failure mode this paper argues against: a verifier
 optimized for, and evaluated by, mAP can appear stronger on the
 commonly reported metric while functioning as a weaker second-stage
 verifier under the metric that determines system-level performance. The
-two lightweight backbones (MobileNetV3-Small, ShuffleNetV2 x0.5), trained
+two lightweight backbones (MobileNetV3-Small~\cite{howard2019mobilenetv3},
+ShuffleNetV2 x0.5~\cite{ma2018shufflenet}), trained
 from scratch with no architectural changes beyond a 1-channel first layer
 and the same verification head as EMA-Det, achieve comparable mAP and
 recall to EMA-Det despite having 40--77\% fewer parameters and
