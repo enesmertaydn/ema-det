@@ -20,7 +20,10 @@
 % each DOI as a full "https://doi.org/..." clickable URL (via \doiurl,
 % defined only if not already defined -- see its \ifx \doiurl \undefined
 % guard). Defining it here first keeps the link live but shows short
-% "doi:10.xxxx/..." text instead, saving one near-full line per entry.
+% "DOI" text instead, saving one near-full line per entry. Verified
+% against the actual sn-mathphys-num.bst source and a real BibTeX
+% compile: the .bbl correctly emits \doiurl{...} calling this
+% definition instead of the .bst's own fallback.
 \newcommand{\doiurl}[1]{\href{https://doi.org/#1}{DOI}}
 
 \raggedbottom
@@ -37,7 +40,7 @@
 
 \affil*[1]{\orgdiv{Department of Electrical and Electronics Engineering}, \orgname{Ankara Y{\i}ld{\i}r{\i}m Beyaz{\i}t University}, \orgaddress{\city{Ankara}, \country{T{\"u}rkiye}}}
 
-\abstract{Autonomous detection of Low-Slow-Small (LSS) UAVs on edge devices typically relies on two-stage pipelines, where a lightweight proposal stage nominates candidate regions that a verification network must evaluate under strict computational and memory constraints. This paper presents EMA-Det, a hardware-aware region-verification network for this second stage, integrating a physically initialized (Laplacian/Sobel) first layer with two early-exit gates that let high-confidence background regions bypass most network layers, translating the asymmetric candidate-region distribution into a measurable latency advantage. Evaluated on a source-level-split, deduplicated dataset under a controlled $N{=}5$-seed, 150-epoch protocol, EMA-Det achieves $96.08\pm0.47\%$ recall, versus $73.75\pm1.86\%$ for a full detection baseline (YOLOv8n) under identical conditions -- demonstrating that mean Average Precision (mAP) is a suboptimal optimization target for a second-stage verifier, since system-level recall $R_{\text{total}} = R_{\text{proposal}} \times R_{\text{verifier}}$ is bottlenecked by the weaker factor. To validate edge-deployment viability, we present a static hardware-resource analysis alongside a synthesized, resource-verified FPGA implementation (Zynq-7020) of the network's first block, substantiating a shift from FLOPs-oriented lightweight backbones toward a streaming, memory-bandwidth-aware architecture. Finally, cross-sensor evaluation on the Anti-UAV410 thermal-IR benchmark shows the EO-trained verifier transfers zero-shot with precision intact but recall falling to $80.12$--$86.29\%$ and mAP@0.5 to $39.38$--$52.05\%$, while EMA-Det trained from scratch on thermal data achieves mAP@0.5 $89.52\pm0.93\%$ and recall $91.64\pm0.41\%$ -- confirming the zero-shot gap reflects genuine domain shift rather than an architectural ceiling.}
+\abstract{Autonomous detection of Low-Slow-Small (LSS) UAVs on edge devices typically relies on two-stage pipelines. In these systems, a lightweight proposal stage nominates candidate regions, which a verification network must subsequently evaluate under strict computational and memory constraints. This paper presents EMA-Det, a hardware-aware region-verification network designed to optimize this second stage. The architecture integrates a physically initialized (Laplacian/Sobel) first layer with two early-exit gates. These gates allow high-confidence background regions to bypass the majority of the network layers, effectively translating the highly asymmetric distribution of candidate regions into a measurable latency advantage. Evaluated on a source-level-split, deduplicated dataset using a controlled $N{=}5$-seed, 150-epoch protocol, EMA-Det achieves a recall of $96.08\pm0.47\%$. In contrast, a full detection baseline (YOLOv8n) is limited to $73.75\pm1.86\%$ under identical conditions. This demonstrates that mean Average Precision (mAP) is a suboptimal primary optimization target for a second-stage verifier, since overall system-level recall $R_{\text{total}} = R_{\text{proposal}} \times R_{\text{verifier}}$ is bottlenecked by the weaker factor. To validate its viability for edge deployment, we present a static hardware-resource analysis alongside a synthesized, resource-verified FPGA implementation (Zynq-7020) of the network's first block. This substantiates the design's shift from FLOPs-oriented lightweight backbones toward a streaming, memory-bandwidth-aware architecture. Finally, cross-sensor evaluation on the Anti-UAV410 thermal-IR benchmark shows the EO-trained verifier transfers zero-shot with precision intact, but recall falling to $80.12$--$86.29\%$ and mAP@0.5 to $39.38$--$52.05\%$. However, when the proposed EMA-Det architecture is trained from scratch on thermal data, it achieves an mAP@0.5 of $89.52\pm0.93\%$ and a recall of $91.64\pm0.41\%$. This confirms that the zero-shot gap reflects a genuine domain shift rather than an architectural ceiling.}
 
 \keywords{LSS UAV Detection, Region Verification, Early-Exit, FPGA, Edge Computing, Cross-Sensor Generalization}
 
@@ -66,22 +69,22 @@ priors~\cite{nabati2019rrpn}, acoustic sensors~\cite{tegler2025sound}, or
 motion/background-subtraction) identifies candidate RoIs, and a second
 stage crops small patches and feeds them to a network for verification.
 
-Prior work commonly adapts general-purpose detectors (the YOLO family,
-SSD) — originally developed for full-frame optical/aerial object
-detection~\cite{li2020object} — to the RoI-verification
+Prior work in this space commonly adapts general-purpose detectors (the
+YOLO family, SSD) — originally developed for full-frame optical/aerial
+object detection~\cite{li2020object} — to the RoI-verification
 task~\cite{achmadiah2025energy,cao2023improved}. We argue, and demonstrate
 empirically, that RoI verification in a two-stage system is \emph{not}
-simply a scaled-down detection problem: memory bandwidth is a more
-critical edge-device bottleneck than raw
-compute~\cite{qasaimeh2019comparing}, and even edge-compressed YOLO
-variants run into resource and energy--performance bottlenecks on
-FPGA-class hardware~\cite{adiono2021low,zhang2022apply}. Architectures
-designed for full-frame operation, compressed into a micro-input regime,
-suffer spatial feature loss from deep global-pooling and asymmetric data
-flow. Since total system recall is $R_{\text{total}} = R_{\text{proposal}}
-\times R_{\text{verifier}}$, a verifier's false negative is a
-system-level miss, making recall — not mAP — the design-critical metric
-for the second stage.
+simply a scaled-down detection problem: on edge devices, memory bandwidth
+is a more critical bottleneck than raw compute~\cite{qasaimeh2019comparing};
+even edge-compressed YOLO variants run into resource limits and
+energy--performance bottlenecks on FPGA-class
+hardware~\cite{adiono2021low,zhang2022apply}. Architectures designed for
+full-frame operation, compressed into a micro-input regime, suffer
+spatial feature loss from their deep global-pooling stages and asymmetric
+data flow. Since total system recall is $R_{\text{total}} =
+R_{\text{proposal}} \times R_{\text{verifier}}$, a verifier's false
+negative is a system-level miss, making recall — not mAP — the
+design-critical metric for the second stage.
 
 \paragraph{Contributions.} (1) We formalize the RoI-verification problem
 and show that full-frame attention carries a training-stability cost in
@@ -115,13 +118,13 @@ R_{\text{proposal}} \times R_{\text{verifier}}$ (Section~\ref{sec:intro})
 rather than treating it as a scaled-down general detector.
 
 \paragraph{Efficient edge backbones.} Mobile-oriented backbones cut FLOPs
-mainly via depthwise-separable/grouped
+mainly via depthwise-separable or grouped
 convolutions~\cite{howard2019mobilenetv3} and channel-shuffle
-operations~\cite{ma2018shufflenet}, optimized against mobile-CPU cost
+operations~\cite{ma2018shufflenet}, both optimized against mobile-CPU cost
 models. FPGA accelerator work shows these operations instead raise
 memory-bandwidth pressure on BRAM-constrained
-fabrics~\cite{zhao2024fpga} — consistent with EMA-Det's shallow,
-streaming-friendly backbone of standard convolutions
+fabrics~\cite{zhao2024fpga} — consistent with EMA-Det's choice of standard
+convolutions in a shallow, streaming-friendly backbone
 (Section~\ref{sec:baselines}).
 
 \paragraph{Early-exit inference.} Confidence-gated early exits let easy
@@ -143,8 +146,8 @@ setting via a decoupled spatial bbox head rather than attention alone.
 been studied as EO/IR fusion~\cite{sun2022dronevehicle} and, for the
 benchmark used here, as single-sensor thermal-IR
 detection~\cite{antiuav410}. This paper does not fuse modalities;
-Section~\ref{sec:crosssensor} measures the zero-shot EO$\to$thermal gap
-directly.
+Section~\ref{sec:crosssensor} instead measures the zero-shot
+EO$\to$thermal generalization gap directly.
 
 \section{EMA-Det: Architecture and Method}\label{sec:method}
 
@@ -650,19 +653,20 @@ funding.
 The authors declare no conflict of interest.
 
 \bmhead{Ethics approval and consent to participate}
-Not applicable (no human/animal subjects; UAV imagery is from public
-third-party collections, Section~\ref{sec:leakage}).
+Not applicable (no human or animal subjects; UAV imagery used in this
+study is drawn from public third-party collections, Section~\ref{sec:leakage}).
 
 \bmhead{Consent for publication}
 Not applicable.
 
 \bmhead{Data availability}
 Dataset construction is described in Section~\ref{sec:leakage}; code to
-regenerate it is provided (see Code availability). Raw imagery is from
-the public Kaggle~\cite{dasmehdixtr_kaggle} and Roboflow
-Universe~\cite{mohsen_roboflow} collections; thermal cross-sensor data
-(Section~\ref{sec:crosssensor}) is the public Anti-UAV410
-benchmark~\cite{antiuav410}.
+regenerate the dataset is provided (see Code availability, below). Raw
+imagery is drawn from the public Kaggle~\cite{dasmehdixtr_kaggle} and
+Roboflow Universe~\cite{mohsen_roboflow} collections; the thermal
+cross-sensor data (Section~\ref{sec:crosssensor}) is the public
+Anti-UAV410 benchmark~\cite{antiuav410}. No new human- or
+animal-derived data were collected for this study.
 
 \bmhead{Materials availability}
 Not applicable.
@@ -673,10 +677,11 @@ available in a version-controlled repository (GitHub link to be
 inserted upon acceptance -- not yet public).
 
 \bmhead{Author contribution}
-E.M.A.\ conceptualized the study and developed the architecture,
-dataset pipeline, training/evaluation code, hardware synthesis, and
-manuscript. O.T.\ and E.\c{C}.\ supervised the work and reviewed the
-manuscript. All authors approved the final manuscript.
+E.M.A.\ conceptualized the study, developed the model architecture,
+dataset-construction pipeline, and training/evaluation code, ran all
+experiments, performed the hardware synthesis and analysis, and wrote
+the manuscript. O.T.\ and E.\c{C}.\ supervised the work and reviewed
+the manuscript. All authors read and approved the final manuscript.
 
 \bibliography{refs}
 
