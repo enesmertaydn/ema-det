@@ -98,15 +98,18 @@ with fewer parameters, but without EMA-Det's early-exit compute savings.
 
 ### Initialization ablation: Laplacian/Sobel vs. random first layer (N=5)
 
-| Metric (test) | Laplacian/Sobel | Random | Paired t-test p |
-|---|---|---|---|
-| mAP@0.5 | 58.03±1.60% | 58.08±1.78% | 0.98 |
-| mAP@0.5:0.95 | 28.04±1.90% | 29.09±2.09% | 0.62 |
-| Recall | 96.08±0.47% | 96.14±0.97% | 0.93 |
+| Metric (test) | Laplacian/Sobel (trainable) | Random init | p | 12 kernels frozen | p |
+|---|---|---|---|---|---|
+| mAP@0.5 | 58.03±1.60% | 58.08±1.78% | 0.98 | 59.11±1.37% | 0.44 |
+| mAP@0.5:0.95 | 28.04±1.90% | 29.09±2.09% | 0.62 | 29.02±1.18% | 0.53 |
+| Recall | 96.08±0.47% | 96.14±0.97% | 0.93 | 96.77±0.97% | 0.26 |
 
 No measurable difference in accuracy or convergence speed: the physical prior is kept as an
-interpretable starting point, not as a performance claim. Run with `python src/train.py --only final --random_init`,
+interpretable starting point, not as a performance claim. Freezing the 12 fixed Laplacian/Sobel
+kernels (the other 4 channels stay trainable) costs no accuracy either, so those channels could use
+shifts and additions instead of multipliers (accuracy only: the multiplier-free Block 1 is not synthesized). Run with `python src/train.py --only final --random_init`,
 then `src/init_ablation_exact.py` and `src/init_ablation_analysis.py` (results in `results/init_ablation*.json`).
+Frozen kernels: `python src/train.py --only final --freeze_kernels`, then `python src/frozen_ablation.py eval` and `... stats`.
 
 ## Corrections vs. the conference draft
 
@@ -155,6 +158,7 @@ src/
   earlyexit_recall.py                      # recall (and mAP) across the early-exit thresholds, best seed + 5 seeds
   plot_featuremaps.py                       # Block 1 feature maps (paper Fig. 2) and kernel-drift statistic
   init_ablation_exact.py / init_ablation_analysis.py   # Laplacian/Sobel vs. random-init ablation
+  frozen_ablation.py                                    # frozen vs. trainable fixed kernels (eval + stats)
   export_onnx.py                          # ONNX export + PyTorch/ONNX parity + latency benchmark
   export_hls_weights.py                    # extracts trained weights for hardware/hls/
   make_architecture_figure.py               # generates paper/architecture.png

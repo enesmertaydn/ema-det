@@ -80,6 +80,17 @@ class LaplacianSobelInit(nn.Module):
         self.bn  = nn.BatchNorm2d(out_ch)
         self.act = nn.LeakyReLU(0.1)
 
+    def freeze_fixed_kernels(self, n_fixed: int = 12) -> None:
+        """Keep the first n_fixed (deterministic Laplacian/Sobel) output channels exactly
+        at their initial values. Call restore_frozen() after every optimizer step.
+        (Only the frozen-kernel ablation uses this; the default network is unchanged.)"""
+        self._n_fixed = n_fixed
+        self.register_buffer("_fixed_w", self.conv.weight.detach().clone()[:n_fixed], persistent=False)
+
+    @torch.no_grad()
+    def restore_frozen(self) -> None:
+        self.conv.weight[: self._n_fixed].copy_(self._fixed_w)
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.act(self.bn(self.conv(x)))
 

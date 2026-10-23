@@ -1,0 +1,91 @@
+{
+  "summary": {
+    "map50": {
+      "trainable_mean": 58.03062081336975,
+      "trainable_std": 1.5970174153617236,
+      "frozen_mean": 59.10607099533081,
+      "frozen_std": 1.365725684383433,
+      "diff_trainable_minus_frozen": -1.0754501819610596,
+      "paired_t_p": 0.44179354903545154
+    },
+    "map75": {
+      "trainable_mean": 24.071304202079773,
+      "trainable_std": 2.4320193484643067,
+      "frozen_mean": 24.904848039150238,
+      "frozen_std": 2.7595698693892974,
+      "diff_trainable_minus_frozen": -0.8335438370704651,
+      "paired_t_p": 0.7501606753184953
+    },
+    "map50_95": {
+      "trainable_mean": 28.044474124908447,
+      "trainable_std": 1.8975085717647564,
+      "frozen_mean": 29.01902139186859,
+      "frozen_std": 1.1820311515932087,
+      "diff_trainable_minus_frozen": -0.974547266960144,
+      "paired_t_p": 0.5317610016028774
+    },
+    "recall": {
+      "trainable_mean": 96.07594933668481,
+      "trainable_std": 0.4736275171632757,
+      "frozen_mean": 96.77215186811009,
+      "frozen_std": 0.9681682617681988,
+      "diff_trainable_minus_frozen": -0.6962025314252542,
+      "paired_t_p": 0.26176016347784586
+    },
+    "precision": {
+      "trainable_mean": 95.00436648741845,
+      "trainable_std": 0.9330802572219289,
+      "frozen_mean": 94.39517314852114,
+      "frozen_std": 0.7456736810735026,
+      "diff_trainable_minus_frozen": 0.6091933388973103,
+      "paired_t_p": 0.4958062203524757
+    },
+    "f1": {
+      "trainable_mean": 95.53352980553409,
+      "trainable_std": 0.45515106407348777,
+      "frozen_mean": 95.56166583361755,
+      "frozen_std": 0.22566164148508444,
+      "diff_trainable_minus_frozen": -0.028136028083451947,
+      "paired_t_p": 0.8816088295786886
+    },
+    "mean_iou": {
+      "trainable_mean": 65.6961265256567,
+      "trainable_std": 1.4582372946463948,
+      "frozen_mean": 65.57941889437366,
+      "frozen_std": 1.4595739457627992,
+      "diff_trainable_minus_frozen": 0.11670763128305169,
+      "paired_t_p": 0.9367534747566415
+    }
+  },
+  "all_fixed_kernels_bit_identical": true,
+  "convergence": {
+    "trainable": {
+      "val_map50_ep5": [
+        21.639999999999997,
+        8.426766877041278
+      ],
+      "val_map50_ep10": [
+        37.44,
+        4.652569182720445
+      ],
+      "val_map50_ep20": [
+        50.220000000000006,
+        1.617899873292536
+      ]
+    },
+    "frozen": {
+      "val_map50_ep5": [
+        25.4,
+        5.57960572083727
+      ],
+      "val_map50_ep10": [
+        37.339999999999996,
+        4.30237143910193
+      ],
+      "val_map50_ep20": [
+        50.46,
+        1.4319217855735
+      ]
+    }
+  }
+}

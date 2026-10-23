@@ -76,6 +76,7 @@ class Config:
     lambda_e2:   float = 0.4
 
     physical_init: bool = True      # False: random first-layer init (ablation only, tag "_randinit")
+    freeze_kernels: bool = False    # True: keep the 12 fixed Laplacian/Sobel kernels frozen (ablation only, tag "_frozen")
     use_spatial_bbox: bool = True   # default architecture (see EMADet's docstring):
                                      # bbox head reads the pre-GAP 256x4x4 feature map.
                                      # False reproduces the legacy (pre-ablation) head.
@@ -98,7 +99,7 @@ class Config:
 
 def _arch_suffix(cfg) -> str:
     """Tag suffix distinguishing architecture variants (legacy head, random init)."""
-    return ("_legacygapbbox" if not cfg.use_spatial_bbox else "") + ("_randinit" if not cfg.physical_init else "")
+    return ("_legacygapbbox" if not cfg.use_spatial_bbox else "") + ("_randinit" if not cfg.physical_init else "") + ("_frozen" if cfg.freeze_kernels else "")
 
 
 # ==============================================================================
@@ -366,6 +367,8 @@ def train_one_run(seed: int, use_attention: bool, cfg: Config, device: torch.dev
     test_ds = DroneDetectDataset(test_dir, augment=False, img_size=cfg.img_size, cache_images=True)
 
     bce = nn.BCEWithLogitsLoss()
+    if cfg.freeze_kernels:
+        model.block1.freeze_fixed_kernels()
     opt = optim.AdamW(model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay)
     sched = WarmupCosineScheduler(opt, cfg.warmup_epochs, cfg.epochs)
     stopper = EarlyStopping(cfg.patience, cfg.min_delta)
@@ -401,6 +404,8 @@ def train_one_run(seed: int, use_attention: bool, cfg: Config, device: torch.dev
             loss.backward()
             nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0)
             opt.step()
+            if cfg.freeze_kernels:
+                model.block1.restore_frozen()
 
             tloss += loss.item(); tloss_cls += loss_cls.item(); tloss_bbox += loss_bbox.item()
             tloss_e1 += loss_e1.item(); tloss_e2 += loss_e2.item(); n_batches += 1
@@ -627,6 +632,8 @@ def main():
     parser.add_argument("--quick", action="store_true", help="smoke test: 1 seed, 2 epochs")
     parser.add_argument("--random_init", action="store_true",
                         help="ablation: random (Kaiming-uniform) first-layer init instead of Laplacian/Sobel")
+    parser.add_argument("--freeze_kernels", action="store_true",
+                        help="ablation: keep the 12 fixed Laplacian/Sobel kernels frozen during training")
     parser.add_argument("--legacy_gap_bbox", action="store_true",
                         help="reproduce the pre-ablation architecture (bbox head on the "
                              "GAP-pooled vector) instead of the default spatial bbox head")
@@ -640,6 +647,7 @@ def main():
     if args.seeds: cfg.seeds = [int(s) for s in args.seeds.split(",")]
     cfg.use_spatial_bbox = not args.legacy_gap_bbox
     cfg.physical_init = not args.random_init
+    cfg.freeze_kernels = args.freeze_kernels
 
     if args.quick:
         cfg.epochs, cfg.patience, cfg.seeds = 2, 1, [42]
