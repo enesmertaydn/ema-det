@@ -59,12 +59,19 @@ variance. Reproduce the legacy head via `--legacy_gap_bbox` in `train.py`.
 
 ### Early-exit (τ) trade-off, final config
 
-| τ | mAP@0.5 | FLOPs saved | FPS | Gate1% | Gate2% | Main% |
-|---|---|---|---|---|---|---|
-| 0.85 | 58.9% | 21.2% | 358.5 | 24.8% | 21.7% | 53.5% |
-| 0.90 | 58.9% | 16.2% | 340.8 | 16.0% | 29.4% | 54.6% |
-| 0.92 | 58.9% | 13.9% | 336.3 | 11.9% | 33.1% | 55.1% |
-| 0.95 | 58.9% | 12.5% | 337.8 | 9.7% | 34.0% | 56.3% |
+| τ | mAP@0.5 | Recall | FLOPs saved | FPS | Gate1% | Gate2% | Main% |
+|---|---|---|---|---|---|---|---|
+| full network | 59.5% | 96.2% | 0.0% | -- | 0.0% | 0.0% | 100.0% |
+| 0.85 | 58.9% | 95.3% | 21.2% | 358.5 | 24.8% | 21.7% | 53.5% |
+| 0.90 | 58.9% | 95.3% | 16.2% | 340.8 | 16.0% | 29.4% | 54.6% |
+| 0.92 | 58.9% | 95.3% | 13.9% | 336.3 | 11.9% | 33.1% | 55.1% |
+| 0.95 | 58.9% | 95.6% | 12.5% | 337.8 | 9.7% | 34.0% | 56.3% |
+
+mAP and recall are those of the best-seed checkpoint. Over the five seeds, recall goes from
+96.08±0.47% (full network) to 95.13±0.74% (τ=0.85) and 95.70±0.59% (τ=0.95), i.e. early exit
+costs 0.4–1.0 recall points (`src/earlyexit_recall.py`, `results/early_exit_recall.json`).
+FLOPs savings rise and FPS generally improves as τ falls (a lower τ raises the halting
+threshold 1−τ, so more candidates exit early).
 
 FPS measured single-sample (batch=1) on an RTX 4060 Laptop GPU — a proxy for the target
 edge deployment, not the Jetson/FPGA numbers themselves (hardware validation is planned,
@@ -75,17 +82,31 @@ see Roadmap).
 | Model | mAP@0.5 | mAP@0.5:0.95 | Recall | Params | FLOPs |
 |---|---|---|---|---|---|
 | EMA-Det (final) | 58.03±1.60% | 28.04±1.90% | **96.08±0.47%** | 1.53M | 423.1M |
-| YOLOv8n (scratch) | **79.45±0.69%** | **49.59±0.45%** | 73.75±1.86% | 3.01M | 8.2G |
+| YOLOv8n (scratch) | 79.45±0.69% | 49.59±0.45% | 73.75±1.86% | 3.01M | 8.2G |
+| YOLOv8n (COCO-pretrained) | **84.02±0.61%** | **54.10±1.48%** | 78.17±0.57% | 3.01M | 8.2G |
 | MobileNetV3-Small (scratch) | 57.04±4.51% | 26.35±3.41% | 94.05±1.39% | 0.93M | 38.0M |
 | ShuffleNetV2 x0.5 (scratch) | 56.26±2.11% | 25.68±1.37% | 93.80±1.11% | 0.35M | 24.9M |
 
-YOLOv8n's mAP is ~1.8x EMA-Det's, but its recall is capped ~22 points lower and tight
-across seeds (not noise) — the clearest concrete illustration of this project's central
+YOLOv8n's mAP is ~1.8-1.9x EMA-Det's, but its recall is ~18-22 points lower (COCO pretraining
+narrows the gap by 4.4 points but does not close it) and tight across seeds (not seed noise;
+whether the cause is architectural is not established) — the clearest concrete illustration of this project's central
 argument: since system recall is
 `R_total = R_proposal × R_verifier`, a verifier optimized for mAP can look stronger on the
 metric everyone reports while being the weaker link for actual two-stage system
 performance. The two generic lightweight backbones land close to EMA-Det on both metrics
 with fewer parameters, but without EMA-Det's early-exit compute savings.
+
+### Initialization ablation: Laplacian/Sobel vs. random first layer (N=5)
+
+| Metric (test) | Laplacian/Sobel | Random | Paired t-test p |
+|---|---|---|---|
+| mAP@0.5 | 58.03±1.60% | 58.08±1.78% | 0.98 |
+| mAP@0.5:0.95 | 28.04±1.90% | 29.09±2.09% | 0.62 |
+| Recall | 96.08±0.47% | 96.14±0.97% | 0.93 |
+
+No measurable difference in accuracy or convergence speed: the physical prior is kept as an
+interpretable starting point, not as a performance claim. Run with `python src/train.py --only final --random_init`,
+then `src/init_ablation_exact.py` and `src/init_ablation_analysis.py` (results in `results/init_ablation*.json`).
 
 ## Corrections vs. the conference draft
 
@@ -130,6 +151,10 @@ src/
   pr_curve.py                          # precision-recall curve for trained checkpoints
   baselines.py / train_baseline.py      # MobileNetV3-Small / ShuffleNetV2 x0.5 comparison models
   train_yolov8n_clean.py                 # YOLOv8n scratch retrain on the clean dataset
+  train_yolov8n_pretrained.py             # same protocol, COCO-pretrained YOLOv8n (needs ultralytics + yolov8n.pt)
+  earlyexit_recall.py                      # recall (and mAP) across the early-exit thresholds, best seed + 5 seeds
+  plot_featuremaps.py                       # Block 1 feature maps (paper Fig. 2) and kernel-drift statistic
+  init_ablation_exact.py / init_ablation_analysis.py   # Laplacian/Sobel vs. random-init ablation
   export_onnx.py                          # ONNX export + PyTorch/ONNX parity + latency benchmark
   export_hls_weights.py                    # extracts trained weights for hardware/hls/
   make_architecture_figure.py               # generates paper/architecture.png
@@ -159,6 +184,13 @@ python src/train.py --only both
 
 # 4. Precision-recall curves for the trained checkpoints
 python src/pr_curve.py
+
+# 5. Revision experiments
+python src/earlyexit_recall.py                       # recall vs. early-exit threshold
+python src/train_yolov8n_pretrained.py                # COCO-pretrained YOLOv8n, 5 seeds
+python src/train.py --only final --random_init        # random first-layer init, 5 seeds
+python src/init_ablation_exact.py && python src/init_ablation_analysis.py
+python src/plot_featuremaps.py                        # paper Fig. 2
 ```
 
 `python src/ema_det.py` runs the model's self-test (shape/gradient/gate-logic checks)

@@ -56,3 +56,8 @@ Thumbs.db
 # Editors
 .vscode/
 .idea/
+
+# Revision-run artifacts (large weights/plots)
+results/yolov8n_pretrained/
+results/randinit_seed31415/
+runs/

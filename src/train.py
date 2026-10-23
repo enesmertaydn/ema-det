@@ -75,6 +75,7 @@ class Config:
     lambda_e1:   float = 0.3
     lambda_e2:   float = 0.4
 
+    physical_init: bool = True      # False: random first-layer init (ablation only, tag "_randinit")
     use_spatial_bbox: bool = True   # default architecture (see EMADet's docstring):
                                      # bbox head reads the pre-GAP 256x4x4 feature map.
                                      # False reproduces the legacy (pre-ablation) head.
@@ -93,6 +94,11 @@ class Config:
                                  # the training batch_size above.
     conf_thresh: float = 0.5
     device:      str   = "cuda" if torch.cuda.is_available() else "cpu"
+
+
+def _arch_suffix(cfg) -> str:
+    """Tag suffix distinguishing architecture variants (legacy head, random init)."""
+    return ("_legacygapbbox" if not cfg.use_spatial_bbox else "") + ("_randinit" if not cfg.physical_init else "")
 
 
 # ==============================================================================
@@ -333,11 +339,12 @@ def evaluate(model: nn.Module, data_dir: str, device: torch.device, img_size: in
 # SINGLE-SEED / SINGLE-CONFIG TRAINING
 # ==============================================================================
 def train_one_run(seed: int, use_attention: bool, cfg: Config, device: torch.device) -> Tuple[nn.Module, Dict]:
-    tag = ("cbam" if use_attention else "final") + ("_legacygapbbox" if not cfg.use_spatial_bbox else "")
+    tag = ("cbam" if use_attention else "final") + _arch_suffix(cfg)
     print(f"\n{'='*70}\n  config={tag}  seed={seed}\n{'='*70}")
 
     set_seed(seed)
-    model = EMADet(use_attention=use_attention, use_spatial_bbox=cfg.use_spatial_bbox).to(device)
+    model = EMADet(use_attention=use_attention, use_spatial_bbox=cfg.use_spatial_bbox,
+                   physical_init=cfg.physical_init).to(device)
 
     flops_str, params_str, n_params = measure_complexity(model, device, cfg.img_size)
     print(f"  Params: {params_str} ({n_params:,})   FLOPs: {flops_str}")
@@ -455,7 +462,7 @@ def run_controlled_comparison(cfg: Config, configs_to_run: List[bool]) -> Dict:
     all_results = {}
 
     for use_attention in configs_to_run:
-        tag = ("cbam" if use_attention else "final") + ("_legacygapbbox" if not cfg.use_spatial_bbox else "")
+        tag = ("cbam" if use_attention else "final") + _arch_suffix(cfg)
         per_seed, best_map50, best_state = [], -1.0, None
 
         for seed in cfg.seeds:
@@ -476,7 +483,7 @@ def run_controlled_comparison(cfg: Config, configs_to_run: List[bool]) -> Dict:
                              "n_params": per_seed[0]["n_params"], "flops": per_seed[0]["flops"]}
         print_summary(tag, summary)
 
-    out_name = "controlled_comparison" + ("_legacygapbbox" if not cfg.use_spatial_bbox else "") + ".json"
+    out_name = "controlled_comparison" + _arch_suffix(cfg) + ".json"
     out_path = os.path.join(cfg.save_dir, out_name)
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump({
@@ -487,7 +494,8 @@ def run_controlled_comparison(cfg: Config, configs_to_run: List[bool]) -> Dict:
             "config": {"seeds": cfg.seeds, "epochs": cfg.epochs, "patience": cfg.patience,
                        "lr": cfg.lr, "weight_decay": cfg.weight_decay,
                        "lambda_bbox": cfg.lambda_bbox, "lambda_e1": cfg.lambda_e1, "lambda_e2": cfg.lambda_e2},
-            "results": {tag: {"summary": r["summary"], "n_params": r["n_params"], "flops": r["flops"]}
+            "results": {tag: {"summary": r["summary"], "n_params": r["n_params"], "flops": r["flops"],
+                              "per_seed": r["per_seed"]}
                         for tag, r in all_results.items()},
         }, f, indent=2, ensure_ascii=False)
     print(f"\nSaved controlled comparison -> {out_path}")
@@ -617,6 +625,8 @@ def main():
     parser.add_argument("--seeds", default=None, help="comma-separated, e.g. 42,7,123,2024,31415")
     parser.add_argument("--only", choices=["final", "cbam", "both"], default="both")
     parser.add_argument("--quick", action="store_true", help="smoke test: 1 seed, 2 epochs")
+    parser.add_argument("--random_init", action="store_true",
+                        help="ablation: random (Kaiming-uniform) first-layer init instead of Laplacian/Sobel")
     parser.add_argument("--legacy_gap_bbox", action="store_true",
                         help="reproduce the pre-ablation architecture (bbox head on the "
                              "GAP-pooled vector) instead of the default spatial bbox head")
@@ -629,6 +639,7 @@ def main():
     if args.patience: cfg.patience = args.patience
     if args.seeds: cfg.seeds = [int(s) for s in args.seeds.split(",")]
     cfg.use_spatial_bbox = not args.legacy_gap_bbox
+    cfg.physical_init = not args.random_init
 
     if args.quick:
         cfg.epochs, cfg.patience, cfg.seeds = 2, 1, [42]
@@ -642,12 +653,13 @@ def main():
     results = run_controlled_comparison(cfg, configs_to_run)
 
     if False in configs_to_run:
-        final_tag = "final" + ("_legacygapbbox" if not cfg.use_spatial_bbox else "")
-        best_final = EMADet(use_attention=False, use_spatial_bbox=cfg.use_spatial_bbox).to(torch.device(cfg.device))
+        final_tag = "final" + _arch_suffix(cfg)
+        best_final = EMADet(use_attention=False, use_spatial_bbox=cfg.use_spatial_bbox,
+                            physical_init=cfg.physical_init).to(torch.device(cfg.device))
         best_final.load_state_dict(torch.load(results[final_tag]["best_ckpt"], map_location=cfg.device))
         ee_rows = analyze_early_exit_table(best_final, cfg)
         print_early_exit_table(ee_rows)
-        ee_suffix = "_legacygapbbox" if not cfg.use_spatial_bbox else ""
+        ee_suffix = _arch_suffix(cfg)
         ee_path = os.path.join(cfg.save_dir, f"early_exit_table{ee_suffix}.json")
         with open(ee_path, "w", encoding="utf-8") as f:
             json.dump(ee_rows, f, indent=2)

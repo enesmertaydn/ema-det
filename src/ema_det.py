@@ -17,7 +17,7 @@ Design notes tied to the manuscript:
   * Block1 weights are initialized from a deterministic Laplacian/Sobel filter
     bank (Eq. 2) but are left UNFROZEN — they are ordinary nn.Parameter tensors
     and receive gradient updates like any other layer. See `LaplacianSobelInit`.
-  * Gate 1 / Gate 2 implement the asymptotic early-exit rule of Eq. 4:
+  * Gate 1 / Gate 2 implement the threshold early-exit rule of Eq. 4:
         result = background (halt)   if  p_hat <= 1 - tau
                  continue to C_{i+1}  if  p_hat >  1 - tau
     This is only meaningful for single-sample (batch=1) edge inference, which
@@ -68,11 +68,14 @@ def make_edge_kernels(out_channels: int) -> torch.Tensor:
 class LaplacianSobelInit(nn.Module):
     """Block 1: 1->out_ch conv, physically initialized, trainable (unfrozen)."""
 
-    def __init__(self, out_ch: int = 16):
+    def __init__(self, out_ch: int = 16, physical_init: bool = True):
         super().__init__()
         self.conv = nn.Conv2d(1, out_ch, kernel_size=3, stride=1, padding=1, bias=False)
-        with torch.no_grad():
-            self.conv.weight.copy_(make_edge_kernels(out_ch))
+        if physical_init:
+            with torch.no_grad():
+                self.conv.weight.copy_(make_edge_kernels(out_ch))
+        # physical_init=False keeps PyTorch's default (Kaiming-uniform) random
+        # initialization: used only for the random-initialization ablation.
         # No requires_grad_(False) call anywhere: weights update during training.
         self.bn  = nn.BatchNorm2d(out_ch)
         self.act = nn.LeakyReLU(0.1)
@@ -202,13 +205,13 @@ class EMADet(nn.Module):
     """
 
     def __init__(self, use_attention: bool = False, dropout: float = 0.4,
-                 use_spatial_bbox: bool = True):
+                 use_spatial_bbox: bool = True, physical_init: bool = True):
         super().__init__()
         self.use_attention = use_attention
         self.use_spatial_bbox = use_spatial_bbox
 
         # Block 1 — Laplacian/Sobel init, 1 -> 16, 128 -> 64
-        self.block1 = LaplacianSobelInit(16)
+        self.block1 = LaplacianSobelInit(16, physical_init=physical_init)
         self.pool1  = nn.MaxPool2d(2)
 
         # Block 2 — 16 -> 32, 64 -> 32
