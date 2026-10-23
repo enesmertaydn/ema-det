@@ -389,6 +389,7 @@ Pooled vector (legacy) & $56.64{\pm}2.44$ & $18.33{\pm}2.67$ & $25.18{\pm}2.08$ 
 EMA-Det (final) & $58.03{\pm}1.60$ & $24.07{\pm}2.43$ & $28.04{\pm}1.90$ & $95.00{\pm}0.93$ & $\mathbf{96.08{\pm}0.47}$ & $\mathbf{95.53{\pm}0.46}$ & $65.70{\pm}1.46$ \\
 EMA-Det + CBAM & $57.82{\pm}2.12$ & $24.77{\pm}3.88$ & $28.30{\pm}2.07$ & $\mathbf{96.91{\pm}0.43}$ & $93.23{\pm}1.37$ & $95.03{\pm}0.72$ & $\mathbf{66.28{\pm}1.56}$ \\
 EMA-Det, random init & $58.08{\pm}1.78$ & $25.51{\pm}3.18$ & $29.09{\pm}2.09$ & $94.06{\pm}0.60$ & $96.14{\pm}0.97$ & $95.08{\pm}0.60$ & $66.39{\pm}1.69$ \\
+EMA-Det, frozen kernels & $59.11{\pm}1.37$ & $24.90{\pm}2.76$ & $29.02{\pm}1.18$ & $94.40{\pm}0.75$ & $96.77{\pm}0.97$ & $95.56{\pm}0.23$ & $65.58{\pm}1.46$ \\
 \botrule
 \end{tabular}}
 \end{table*}
@@ -405,13 +406,17 @@ information the pooling discarded. With that information restored, CBAM
 adds no localization benefit and keeps a smaller recall cost, so the
 final architecture omits it.
 
-\textbf{Initialization.} The last row of Table~\ref{tab:cbam} repeats EMA-Det with a
-random first layer (same seeds and protocol). Differences are within noise
-(paired $t$-test: mAP@0.5 $p=0.98$, recall $p=0.93$), and validation
-mAP@0.5 after 5, 10 and 20 epochs is $21.6/37.4/50.2\%$ with
-Laplacian/Sobel versus $23.2/39.8/49.3\%$ with random initialization. The
-prior thus gives no measurable gain in accuracy or convergence speed; we
-keep it as an interpretable starting point, without a performance claim.
+\textbf{Initialization.} The last two rows of Table~\ref{tab:cbam} repeat EMA-Det with a
+random first layer and with the twelve fixed kernels frozen (same seeds and
+protocol). Differences are within noise (paired $t$-test, random init:
+mAP@0.5 $p=0.98$, recall $p=0.93$), and validation mAP@0.5 after 5, 10 and
+20 epochs is $21.6/37.4/50.2\%$ with Laplacian/Sobel versus
+$23.2/39.8/49.3\%$ with random initialization. The prior thus gives no
+measurable gain in accuracy or convergence speed. Freezing the fixed
+kernels also costs nothing (mAP@0.5 $p=0.44$, recall $p=0.26$), so these
+channels could use shifts and additions instead of multipliers, with the
+BatchNorm scale applied after accumulation; we have not synthesized this
+variant and make no performance claim for the prior.
 
 \subsection{Comparison with Lightweight Baselines}\label{sec:baselines}
 
