@@ -228,7 +228,7 @@ standalone, without needing a dataset.
 ```
 @article{aydin2026emadet,
   title   = {EMA-Det: Hardware-Aware Edge Verification for Two-Stage UAV Detection},
-  author  = {Ayd{\i}n, Enes Mert and Toklu{\u{g}}lu, Osman and {\c{C}}avu{\c{s}}, Enver},
+  author  = {Ayd{\i}n, Enes Mert and Tokluo{\u{g}}lu, Osman and {\c{C}}avu{\c{s}}, Enver},
   journal = {Signal, Image and Video Processing},
   year    = {2026},
   note    = {Extended version of a paper presented at SIU 2026}
