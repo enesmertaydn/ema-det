@@ -106,6 +106,14 @@ Size ablations (5 seeds each, `src/variants_eval.py`, `results/variants_eval.jso
 Block 6 narrowed to 128 channels (0.93M) and a multi-scale box head (1.72M) show no significant difference from the default in any metric
 (paired t-test, all p > 0.05). The default keeps standard convolutions for the hardware reasons given in the paper.
 
+Centre-based box head (`--center_head`, `src/ema_det.py::CenterHead`, `src/losses.py::center_head_loss`; 1.66M params, 483.8M FLOPs): a CenterNet-style
+heat map plus per-cell offset and size on a 16x16 grid fused from Blocks 3, 4 and 6; the detection score is the classification probability times the
+heat-map peak. Five seeds against the default: mAP@0.5 58.03±1.60 -> 73.58±1.63% (p=0.0001), mAP@0.5:0.95 28.04±1.90 -> 40.60±4.99% (p=0.005),
+box recall (IoU>=0.5) 71.7 -> 77.6% (p=0.003); classification recall and AUROC unchanged. The strict-IoU metrics are unstable across seeds
+(mAP@0.5:0.95 of 44.8, 44.2, 44.7, 36.4, 32.9%). YOLOv8n from scratch reaches 79.5% / 49.6%, COCO-pretrained 84.0% / 54.1%, so the gap narrows but is not closed.
+The head was designed after `src/map_decomposition.py` (run on the test set) showed that the loss comes from box quality and from scores that ignore it;
+the variant was selected on the validation set, but many variants were tried (selection bias), and the test set was seen during that analysis.
+
 ### Initialization ablation: Laplacian/Sobel vs. random first layer (N=5)
 
 | Metric (test) | Laplacian/Sobel (trainable) | Random init | p | 12 kernels frozen | p |

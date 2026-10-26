@@ -84,3 +84,52 @@ def box_iou_elementwise(pred: torch.Tensor, target: torch.Tensor, eps: float = 1
     t_area = (tx2 - tx1) * (ty2 - ty1)
     union  = p_area + t_area - inter + eps
     return inter / union
+
+
+def center_head_loss(hm_logit: torch.Tensor, reg: torch.Tensor, gt: torch.Tensor, pos: torch.Tensor):
+    """
+    Loss of the centre-based localization head (src/ema_det.py CenterHead) for one box per patch.
+      hm_logit (B,1,H,W), reg (B,4,H,W), gt (B,4) normalized (cx, cy, w, h), pos (B,) bool.
+    Heat map: CenterNet focal loss with a Gaussian around the centre cell (all-zero target for background patches).
+    Regression: on the 3x3 cells around the centre cell, CIoU of the decoded box plus L1 of offset and size.
+    Returns (heat-map loss, box loss).
+    """
+    B, _, H, W = hm_logit.shape
+    dev = hm_logit.device
+    posf = pos.float()
+    xs = torch.arange(W, device=dev).view(1, 1, W).float()
+    ys = torch.arange(H, device=dev).view(1, H, 1).float()
+    gx, gy = gt[:, 0] * W, gt[:, 1] * H
+    cxc = gx.floor().clamp(0, W - 1)
+    cyc = gy.floor().clamp(0, H - 1)
+    sigma = (torch.minimum(gt[:, 2], gt[:, 3]) * W / 3).clamp(min=0.8).view(B, 1, 1)
+    target = torch.exp(-((xs - cxc.view(B, 1, 1)) ** 2 + (ys - cyc.view(B, 1, 1)) ** 2) / (2 * sigma ** 2)) * posf.view(B, 1, 1)
+    peak_cell = (target == 1.0) & pos.view(B, 1, 1)
+    p = torch.sigmoid(hm_logit[:, 0]).clamp(1e-4, 1 - 1e-4)
+    pos_loss = -((1 - p) ** 2) * torch.log(p) * peak_cell
+    neg_loss = -((1 - target) ** 4) * (p ** 2) * torch.log(1 - p) * (~peak_cell)
+    n_pos = pos.sum().clamp(min=1)
+    l_hm = (pos_loss.sum() + neg_loss.sum()) / n_pos
+
+    l_box = hm_logit.new_zeros(())
+    if pos.any():
+        boxes, gts, l1 = [], [], []
+        ar = torch.arange(B, device=dev)
+        for dy in (-1, 0, 1):
+            for dx in (-1, 0, 1):
+                iy = (cyc + dy).long()
+                ix = (cxc + dx).long()
+                valid = pos & (iy >= 0) & (iy < H) & (ix >= 0) & (ix < W)
+                if not valid.any():
+                    continue
+                iy, ix = iy.clamp(0, H - 1), ix.clamp(0, W - 1)
+                r = reg[ar, :, iy, ix][valid]
+                g = gt[valid]
+                cx = (ix[valid].float() + r[:, 0]) / W
+                cy = (iy[valid].float() + r[:, 1]) / H
+                boxes.append(torch.stack([cx, cy, torch.sigmoid(r[:, 2]), torch.sigmoid(r[:, 3])], dim=1))
+                gts.append(g)
+                off_t = torch.stack([gx[valid] - ix[valid].float(), gy[valid] - iy[valid].float()], dim=1)
+                l1.append((r[:, :2] - off_t).abs().mean(1) + (torch.sigmoid(r[:, 2:]) - g[:, 2:]).abs().mean(1))
+        l_box = ciou_loss(torch.cat(boxes), torch.cat(gts)) + torch.cat(l1).mean()
+    return l_hm, l_box

@@ -35,6 +35,7 @@ from typing import NamedTuple, Optional
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 # ==============================================================================
@@ -203,6 +204,44 @@ class EMADetOutput(NamedTuple):
     gate1_logit: Optional[torch.Tensor]
     gate2_logit: Optional[torch.Tensor]
     exit_stage: str
+    det_score: Optional[torch.Tensor] = None     # detection score used for mAP (center head only): P(target) x heat-map peak
+    aux: Optional[dict] = None                   # raw heat map / regression maps for the training loss (center head only)
+
+
+class CenterHead(nn.Module):
+    """CenterNet-style single-object localization on a 16x16 grid (stride 8), fused from the Block 3 (64x16x16),
+    Block 4 (128x8x8) and Block 6 (c6x4x4) maps by 1x1 reductions, nearest up-sampling and one 3x3 convolution.
+    Outputs a centre heat map and, per cell, an offset (2, unbounded) and a size (2, sigmoid). Decoding takes the peak cell."""
+
+    def __init__(self, c6: int, mid: int = 64):
+        super().__init__()
+
+        def red(ci):
+            return nn.Sequential(nn.Conv2d(ci, mid, 1, bias=False), nn.BatchNorm2d(mid), nn.LeakyReLU(0.1))
+        self.r3, self.r4, self.r5 = red(64), red(128), red(c6)
+        self.fuse = nn.Sequential(nn.Conv2d(3 * mid, mid, 3, padding=1, bias=False), nn.BatchNorm2d(mid), nn.LeakyReLU(0.1))
+        self.hm = nn.Conv2d(mid, 1, 1)
+        self.reg = nn.Conv2d(mid, 4, 1)
+        nn.init.constant_(self.hm.bias, -2.19)         # prior probability 0.1, as in CenterNet
+
+    def forward(self, p3, p4, p5):
+        f = torch.cat([self.r3(p3), F.interpolate(self.r4(p4), scale_factor=2, mode="nearest"),
+                       F.interpolate(self.r5(p5), scale_factor=4, mode="nearest")], dim=1)
+        f = self.fuse(f)
+        return self.hm(f), self.reg(f)
+
+    @staticmethod
+    def decode(hm, reg):
+        """Peak cell -> box (cx, cy, w, h) in [0, 1] and peak probability."""
+        B, _, H, W = hm.shape
+        flat = hm.reshape(B, -1)
+        idx = flat.argmax(1)
+        peak = torch.sigmoid(flat.max(1).values)
+        iy, ix = idx // W, idx % W
+        r = reg[torch.arange(B, device=hm.device), :, iy, ix]
+        cx = ((ix.float() + r[:, 0]) / W).clamp(0, 1)
+        cy = ((iy.float() + r[:, 1]) / H).clamp(0, 1)
+        return torch.stack([cx, cy, torch.sigmoid(r[:, 2]), torch.sigmoid(r[:, 3])], dim=1), peak
 
 
 # ==============================================================================
@@ -230,9 +269,10 @@ class EMADet(nn.Module):
 
     def __init__(self, use_attention: bool = False, dropout: float = 0.4,
                  use_spatial_bbox: bool = True, physical_init: bool = True,
-                 fusion_bbox: bool = False, c6: int = 256, ds_deep: bool = False):
+                 fusion_bbox: bool = False, c6: int = 256, ds_deep: bool = False, center_head: bool = False):
         super().__init__()
         self.fusion_bbox = fusion_bbox
+        self.center_head = center_head
         self.c6 = c6
         self.use_attention = use_attention
         self.use_spatial_bbox = use_spatial_bbox
@@ -284,7 +324,10 @@ class EMADet(nn.Module):
         self.gap     = nn.AdaptiveAvgPool2d(1)
         self.dropout = nn.Dropout(dropout)
         self.cls_head  = nn.Linear(c6, 1)
-        if fusion_bbox:
+        if center_head:
+            self.ctr = CenterHead(c6)
+            self.bbox_head = None
+        elif fusion_bbox:
             # Multi-scale box head: the 32x32 Block-3 map (finer localization) and the
             # 4x4 Block-6 map are each reduced by a 1x1 conv, concatenated and regressed
             # by a small MLP. Classification path is unchanged.
@@ -378,6 +421,11 @@ class EMADet(nn.Module):
         feat_map = self._gate2_to_feature_map(f)
         pooled = self._pool_and_dropout(feat_map)
         cls_logit = self.cls_head(pooled).squeeze(1)
+        if self.center_head:
+            hm, reg = self.ctr(self._p3, self._p4, feat_map)
+            bbox, peak = CenterHead.decode(hm, reg)
+            det_score = torch.sigmoid(cls_logit) * peak
+            return EMADetOutput(cls_logit, bbox, gate1_logit, gate2_logit, "main", det_score, {"hm": hm, "reg": reg})
         bbox = torch.sigmoid(self.bbox_head(self._bbox_input(feat_map, pooled)))
         return EMADetOutput(cls_logit, bbox, gate1_logit, gate2_logit, "main")
 

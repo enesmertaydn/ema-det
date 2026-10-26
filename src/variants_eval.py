@@ -31,6 +31,7 @@ VARIANTS = {
     "EMA-Det-DS (depthwise Blocks 4-6)": ("final_dsdeep", dict(ds_deep=True)),
     "Block 6 narrowed (128 ch)": ("final_c6128", dict(c6=128)),
     "Multi-scale box head": ("final_fusionbbox", dict(fusion_bbox=True)),
+    "Centre-based box head": ("final_centerhead", dict(center_head=True)),
 }
 
 

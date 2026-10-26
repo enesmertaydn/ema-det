@@ -31,6 +31,7 @@
 
 \begin{document}
 \def\tablebodyfont{\scriptsize}
+\renewcommand{\arraystretch}{0.86}
 \setlength{\textfloatsep}{8pt plus 2pt minus 2pt}\setlength{\floatsep}{8pt plus 2pt minus 2pt}\setlength{\intextsep}{8pt plus 2pt minus 2pt}\setlength{\dbltextfloatsep}{8pt plus 2pt minus 2pt}
 
 \title[EMA-Det]{EMA-Det: Hardware-Aware Edge Verification for Two-Stage UAV Detection}
@@ -43,7 +44,7 @@
 
 \affil*[1]{\orgdiv{Department of Electrical and Electronics Engineering}, \orgname{Ankara Y{\i}ld{\i}r{\i}m Beyaz{\i}t University}, \orgaddress{\city{Ankara}, \country{T{\"u}rkiye}}}
 
-\abstract{Detecting Low-Slow-Small (LSS) unmanned aerial vehicles (UAVs) on edge devices usually takes two stages: a lightweight proposal stage nominates candidate regions, and a verification network checks them under tight compute and memory budgets. This paper presents EMA-Det, a hardware-aware verification network for that second stage. It combines a first layer initialized from Laplacian/Sobel kernels with two early-exit gates that let confident background regions skip most of the network. On a source-level-split, deduplicated dataset, under a controlled protocol ($N{=}5$ seeds, 150 epochs), EMA-Det reaches $96.08\pm0.47\%$ verification recall (target accepted, box not checked), above MobileNetV3-Small ($94.05\pm1.39\%$) and ShuffleNetV2 ($93.80\pm1.11\%$) trained identically. At a $5\%$ false-positive rate it accepts $96.3\pm1.0\%$ of the targets, against $88.4\pm2.8\%$ for a COCO-pretrained and $79.5\pm3.1\%$ for a from-scratch YOLOv8n, a full-frame detector with 19 times the FLOPs and much higher mAP. Its localization is weaker (box recall at IoU\,0.5 is $71.7\%$, no better than YOLOv8n's): it is a better verifier, not a better detector. Mean average precision (mAP) alone is an unreliable guide to verifier quality: system-level recall, $R_{\text{total}} = R_{\text{proposal}} \times R_{\text{verifier}}$, is bounded by the weaker factor. We also give a static hardware-resource analysis and a synthesized, resource-verified field-programmable gate array (FPGA) implementation (Zynq-7020) of the first block. On the Anti-UAV410 thermal-infrared (IR) benchmark, a verifier trained on electro-optical (EO) images transfers zero-shot with precision intact, but recall drops to $80.12$--$86.29\%$ and mAP@0.5 to $39.38$--$52.05\%$. Trained from scratch on thermal data, EMA-Det reaches mAP@0.5 of $89.52\pm0.93\%$ and recall of $91.64\pm0.41\%$, which points to genuine domain shift rather than an architectural ceiling.}
+\abstract{Detecting Low-Slow-Small (LSS) unmanned aerial vehicles (UAVs) on edge devices usually takes two stages: a lightweight proposal stage nominates candidate regions, and a verification network checks them under tight compute and memory budgets. This paper presents EMA-Det, a hardware-aware verification network for that second stage. It combines a first layer initialized from Laplacian/Sobel kernels with two early-exit gates that let confident background regions skip most of the network. On a source-level-split, deduplicated dataset, under a controlled protocol ($N{=}5$ seeds, 150 epochs), EMA-Det reaches $96.08\pm0.47\%$ verification recall (target accepted, box not checked), above MobileNetV3-Small ($94.05\pm1.39\%$) and ShuffleNetV2 ($93.80\pm1.11\%$) trained identically. At a $5\%$ false-positive rate it accepts $96.3\pm1.0\%$ of the targets, against $88.4\pm2.8\%$ for a COCO-pretrained and $79.5\pm3.1\%$ for a from-scratch YOLOv8n, a full-frame detector with 19 times the FLOPs and much higher mAP. Its localization is weaker (mAP@0.5 $58.0\%$ against $79.5\%$ and $84.0\%$); a centre-based box head raises it to $73.6\%$ at 14\% more FLOPs, still below YOLOv8n: a better verifier, not yet a better detector. Mean average precision (mAP) alone is an unreliable guide to verifier quality: system-level recall, $R_{\text{total}} = R_{\text{proposal}} \times R_{\text{verifier}}$, is bounded by the weaker factor. We also give a static hardware-resource analysis and a synthesized, resource-verified field-programmable gate array (FPGA) implementation (Zynq-7020) of the first block. On the Anti-UAV410 thermal-infrared (IR) benchmark, zero-shot transfer from electro-optical (EO) images keeps precision but drops recall to $80.12$--$86.29\%$; trained from scratch on thermal data, EMA-Det reaches mAP@0.5 of $89.52\pm0.93\%$ and recall of $91.64\pm0.41\%$, which points to domain shift rather than an architectural ceiling.}
 
 \keywords{LSS UAV Detection, Region Verification, Early-Exit, FPGA, Edge Computing, Cross-Sensor Generalization}
 
@@ -57,7 +58,7 @@
 bounding-box (bbox) head (Section~\ref{sec:spatialbbox}) and a
 cross-sensor study (Section~\ref{sec:crosssensor}).}
 
-Low-Slow-Small (LSS) unmanned aerial vehicles (UAVs) pose an asymmetric
+\looseness=-1 Low-Slow-Small (LSS) unmanned aerial vehicles (UAVs) pose an asymmetric
 threat to civilian and military infrastructure and call for a fast,
 reliable sense--decide--act loop~\cite{luo2021threat,aydin2025aads}.
 Electro-optical (EO) sensors now typically deliver 4K ($3840\times2160$)
@@ -69,7 +70,7 @@ priors~\cite{nabati2019rrpn}, acoustic sensors~\cite{tegler2025sound}, or
 motion and background subtraction) proposes candidate regions of interest
 (RoIs), and a second stage crops small patches and verifies them.
 
-Prior work usually adapts general-purpose detectors (the YOLO family,
+\looseness=-1 Prior work usually adapts general-purpose detectors (the YOLO family,
 SSD)~\cite{li2020object} to RoI
 verification~\cite{achmadiah2025energy,cao2023improved}. We argue that RoI
 verification is \emph{not} just a scaled-down detection problem. On edge
@@ -118,12 +119,11 @@ EO$\to$thermal-IR transfer on Anti-UAV410 (Section~\ref{sec:crosssensor}).
 
 \section{Related Work}\label{sec:related}
 
-\paragraph{Two-stage detection and efficient backbones.} Two-stage
+\looseness=-1 \paragraph{Two-stage detection and efficient backbones.} Two-stage
 detectors separate proposal from verification and trade latency for
 accuracy relative to single-stage designs~\cite{ren2015faster}; cascades
 refine localization over stages with increasing intersection-over-union
-(IoU) thresholds~\cite{cai2018cascade}. UAV work follows the same
-split~\cite{achmadiah2025energy,cao2023improved}. EMA-Det instead targets
+(IoU) thresholds~\cite{cai2018cascade}. EMA-Det instead targets
 the verification stage itself, through $R_{\text{total}} =
 R_{\text{proposal}} \times R_{\text{verifier}}$ (Section~\ref{sec:intro}),
 rather than shrinking a general detector. Mobile backbones cut FLOPs with
@@ -135,30 +135,27 @@ backbone of standard convolutions (Section~\ref{sec:baselines}), and FPGA
 accelerator design is governed by the balance between compute and memory
 bandwidth~\cite{zhang2015fpga}.
 
-\paragraph{UAV and small-object detection.} Anti-UAV
+\looseness=-1 \paragraph{UAV and small-object detection.} Anti-UAV
 detection and tracking has been widely
-benchmarked~\cite{zhao2022antiuav,jiang2021antiuav,zhu2021visdrone}.
-Seidaliyeva et al.~\cite{seidaliyeva2020drone} detect drones from motion
-cues and a CNN classifier, and small-object detection is tackled, for
-example, by sliced inference~\cite{akyon2022sahi}. These works mostly
-evaluate full-frame detection by mAP, whereas EMA-Det targets the
-verification stage of a cascade and selects models by recall.
+benchmarked~\cite{zhao2022antiuav,jiang2021antiuav,zhu2021visdrone};
+Seidaliyeva et al.~\cite{seidaliyeva2020drone} detect drones from motion cues and a
+CNN classifier, and small objects are tackled, e.g., by sliced
+inference~\cite{akyon2022sahi}. These works mostly evaluate full-frame detection by
+mAP, whereas EMA-Det verifies candidates and selects models by recall.
 Cross-modality UAV detection has been studied as EO/IR
-fusion~\cite{sun2022dronevehicle} and as single-sensor thermal-IR
-detection~\cite{antiuav410}; Section~\ref{sec:crosssensor} quantifies the
-zero-shot EO$\to$thermal gap of our verifier.
+fusion~\cite{sun2022dronevehicle} and single-sensor thermal-IR
+detection~\cite{antiuav410}; Section~\ref{sec:crosssensor} quantifies our verifier's
+zero-shot EO$\to$thermal gap.
 
-\paragraph{Early-exit inference and attention.} Confidence-gated early exits
-let easy inputs skip later
-stages~\cite{teerapittayanon2016branchynet,liang2024implementation}
-(surveyed in~\cite{rahmath2024earlyexit}), usually for classification without
-a strong class prior; EMA-Det's gates (Section~\ref{sec:gates}) instead exploit
-the background majority typical of RoI verification. The Convolutional Block
-Attention Module (CBAM) recalibrates channel and spatial features at
-negligible cost~\cite{woo2018cbam}, and stride-free downsampling preserves
-small-object information that strided pooling discards~\cite{sunkara2022spdconv};
-Sections~\ref{sec:cbam} and~\ref{sec:spatialbbox} reach a related conclusion
-with a decoupled spatial bbox head instead of attention.
+\looseness=-1 \paragraph{Early-exit inference and attention.} Confidence-gated early exits let
+easy inputs skip later stages~\cite{teerapittayanon2016branchynet,liang2024implementation}
+(surveyed in~\cite{rahmath2024earlyexit}), usually for classification without a
+strong class prior; EMA-Det's gates (Section~\ref{sec:gates}) instead exploit the
+background majority of RoI verification. The Convolutional Block Attention Module
+(CBAM) recalibrates channel and spatial features at negligible
+cost~\cite{woo2018cbam}, and stride-free downsampling preserves small-object
+information~\cite{sunkara2022spdconv}; Sections~\ref{sec:cbam} and~\ref{sec:spatialbbox}
+reach a related conclusion with a decoupled spatial bbox head instead of attention.
 
 \section{EMA-Det: Architecture and Method}\label{sec:method}
 
@@ -207,29 +204,24 @@ dilated branches ($d{=}1,2$) into $128\times4\times4$; Block~6 expands it
 to $256\times4\times4$. A verification head (global average pooling (GAP),
 dropout $0.4$) produces a classification logit, and a separate spatial
 branch (Section~\ref{sec:spatialbbox}) produces the 4-coordinate box
-refinement.
-
-CBAM~\cite{woo2018cbam} is \emph{not} part of the default forward path
-(Section~\ref{sec:cbam}).
+refinement. CBAM~\cite{woo2018cbam} is \emph{not} part of the default forward
+path (Section~\ref{sec:cbam}).
 
 \subsection{Spatial Bounding-Box Head}\label{sec:spatialbbox}
-Keeping spatial feature information for box regression, instead of
-regressing from a globally pooled classification vector, is standard
-practice in modern detectors~\cite{ren2015faster,liu2016ssd}.
-An earlier configuration pooled before both branches and so discarded
-spatial layout. Here, classification stays on the pooled vector while the
-box head reads the $256\times4\times4$ feature map before pooling
-(flattened into one linear layer). The legacy row of
-Table~\ref{tab:cbam} reports a controlled $N{=}5$ ablation against the
-pooled-vector configuration: the spatial head improves mAP@0.75 (mAP at an
-IoU threshold of 0.75) by 5.7 points and mAP@0.5:0.95 by 2.9 points, for
-only 15K extra parameters (${\sim}1\%$) and negligible FLOPs. Recall is
-essentially unchanged and its standard deviation across seeds drops
-($2.54\to0.47$). It is the default throughout this paper.
+Keeping spatial feature information for box regression, instead of regressing
+from a globally pooled vector, is standard practice in modern
+detectors~\cite{ren2015faster,liu2016ssd}; an earlier configuration pooled before
+both branches and so discarded spatial layout. Here classification stays on the
+pooled vector while the box head reads the $256\times4\times4$ map before pooling
+(one linear layer). The legacy row of Table~\ref{tab:cbam} (controlled $N{=}5$
+ablation) shows that this improves mAP@0.75 (mAP at IoU 0.75) by 5.7 points and
+mAP@0.5:0.95 by 2.9 points for 15K extra parameters (${\sim}1\%$), with unchanged
+recall and a smaller spread across seeds ($2.54\to0.47$). It is the default
+throughout this paper.
 
 \begin{figure}[t]
 \centering
-\resizebox{0.8\linewidth}{!}{%
+\resizebox{0.7\linewidth}{!}{%
 \begin{tikzpicture}[
   font=\sffamily\small,
   node distance=6.5mm and 14mm,
@@ -286,7 +278,7 @@ entering each block. GAP: global average pooling; FC: fully connected.}\label{fi
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.8\linewidth]{featuremaps.png}
+\includegraphics[width=0.64\linewidth]{featuremaps.png}
 \caption{Block~1 feature maps of the trained EMA-Det (final, seed~42):
 absolute raw $3{\times}3$ convolution responses (contrast-stretched per
 image) of the Laplacian (channel~0), Sobel-$x$ (channel~4) and Sobel-$y$
@@ -326,7 +318,7 @@ C_{i+1}(F_i)\ (\text{continue}), & \hat{y}_i > (1-\tau)
 
 \subsection{Dataset Construction}\label{sec:leakage}
 
-The dataset comes from two public raw sources: photographs of rotary- and
+\looseness=-1 The dataset comes from two public raw sources: photographs of rotary- and
 fixed-wing LSS UAVs from a Kaggle collection~\cite{dasmehdixtr_kaggle}
 (labeled, 80\% of the raw pool) and bird and empty-sky photographs from a
 Roboflow Universe collection~\cite{mohsen_roboflow} (unlabeled hard
@@ -357,12 +349,6 @@ shape of small targets.
 
 \section{Results}\label{sec:results}
 
-\subsection{CBAM Trade-off and Initialization Ablations}\label{sec:cbam}
-
-Table~\ref{tab:cbam} reports the controlled $N{=}5$ comparison, including
-the bounding-box head ablation (Section~\ref{sec:spatialbbox}). Both CBAM
-rows use the default spatial bbox head.
-
 \begin{table*}[t]
 \centering
 \caption{Bounding-box head, CBAM, initialization and size ablations, identical $N{=}5$-seed/150-epoch protocol. Mean $\pm$ std, test set. Parameters in brackets (default: 1.53M).}\label{tab:cbam}
@@ -380,44 +366,10 @@ EMA-Det, frozen kernels & $59.11{\pm}1.37$ & $24.90{\pm}2.76$ & $29.02{\pm}1.18$
 Depthwise Blocks 4--6 (0.30M) & $57.30{\pm}1.62$ & $22.18{\pm}3.63$ & $26.40{\pm}2.24$ & $93.74{\pm}1.34$ & $96.27{\pm}1.03$ & $94.98{\pm}0.55$ & $64.23{\pm}1.56$ \\
 Block~6 narrowed to 128 ch (0.93M) & $58.58{\pm}0.99$ & $27.01{\pm}3.67$ & $29.72{\pm}1.78$ & $94.62{\pm}0.83$ & $96.65{\pm}0.55$ & $95.62{\pm}0.44$ & $66.43{\pm}0.88$ \\
 Multi-scale box head (1.72M) & $60.10{\pm}2.01$ & $25.42{\pm}2.96$ & $29.81{\pm}1.97$ & $95.20{\pm}0.92$ & $95.06{\pm}1.29$ & $95.12{\pm}0.67$ & $66.06{\pm}1.32$ \\
+Centre-based box head (1.66M) & $\mathbf{73.58{\pm}1.63}$ & $38.25{\pm}9.92$ & $\mathbf{40.60{\pm}4.99}$ & $92.97{\pm}1.60$ & $96.46{\pm}0.81$ & $94.66{\pm}0.52$ & $68.56{\pm}2.81$ \\
 \botrule
 \end{tabular}}
 \end{table*}
-
-The last three rows test how far the network can shrink or change without
-losing accuracy: depthwise-separable Blocks~4--6 (1.53M to 0.30M parameters,
-423.1M to 265.6M FLOPs), Block~6 narrowed from 256 to 128 channels (0.93M
-parameters, 404.2M FLOPs) and a multi-scale box head that also reads the
-$32{\times}32$ Block~3 map (+0.19M parameters). A paired $t$-test over the
-five matched seeds finds no significant difference from the default in any
-metric (all $p>0.05$); the multi-scale head, which looked better in a
-single-seed pilot, did not hold over five seeds. We keep standard
-convolutions for the hardware reasons in Section~\ref{sec:intro}; in the
-depthwise variant Gate~2 also sits after 95\% of the compute instead of
-83\%, so early exit saves much less.
-
-With the spatial bbox head, a paired $t$-test over the five matched seeds
-finds no significant difference between configurations in mAP@0.5, mAP@0.75
-or mAP@0.5:0.95 ($p=0.89$, $0.77$, $0.83$). CBAM still costs recall:
-$93.23\pm1.37\%$ against $96.08\pm0.47\%$ (paired $t$-test, $p=0.017$). With
-the legacy pooled-vector head, 2 of 5 CBAM seeds collapsed to 74--79\%
-recall (std $8.85$); this is absent with the spatial head (worst run
-90.8\%). CBAM's benefit there thus seems to have made up for spatial
-information that pooling had discarded; once that is restored it adds no
-localization benefit, so the final architecture leaves it out.
-
-\textbf{Initialization.} The two initialization rows of Table~\ref{tab:cbam}
-repeat EMA-Det with a random first layer and with the twelve fixed kernels
-frozen (same seeds and protocol). The differences are within noise (paired
-$t$-test, random initialization: mAP@0.5 $p=0.98$, recall $p=0.93$; frozen
-kernels: $p=0.44$ and $0.26$), as is validation mAP@0.5 after 5, 10 and 20
-epochs ($21.6/37.4/50.2\%$ against $23.2/39.8/49.3\%$ with random
-initialization). The prior thus brings no measurable gain, and we make no
-performance claim for it. The frozen channels
-could be computed with shifts and additions instead of multipliers; we have not
-synthesized this variant.
-
-\subsection{Comparison with Lightweight Baselines}\label{sec:baselines}
 
 \begin{table*}[t]
 \centering
@@ -429,6 +381,7 @@ synthesized this variant.
 Model & mAP@0.5 & mAP@0.5:0.95 & Recall$^{\dagger}$ & Recall$^{\ddagger}$ & Params & FLOPs \\
 \midrule
 EMA-Det (final) & $58.03{\pm}1.60$ & $28.04{\pm}1.90$ & $\mathbf{96.08{\pm}0.47}$ & $71.71{\pm}1.41$ & 1.53M & 423.1M \\
+EMA-Det, centre-based box head & $73.58{\pm}1.63$ & $40.60{\pm}4.99$ & $96.46{\pm}0.81$ & $77.59{\pm}1.29$ & 1.66M & 483.8M \\
 EMA-Det, Block~6 narrowed to 128 ch & $58.58{\pm}0.99$ & $29.72{\pm}1.78$ & $96.65{\pm}0.55$ & $72.59{\pm}0.55$ & 0.93M & 404.2M \\
 EMA-Det, depthwise Blocks 4--6 & $57.30{\pm}1.62$ & $26.40{\pm}2.24$ & $96.27{\pm}1.03$ & $71.14{\pm}0.61$ & 0.30M & 265.6M \\
 YOLOv8n (scratch) & $79.45{\pm}0.69$ & $49.59{\pm}0.45$ & $69.94{\pm}1.64$ & $62.78{\pm}1.40$ & 3.01M & 8.2G \\
@@ -444,7 +397,53 @@ YOLOv8n (COCO), score threshold 0.1 & -- & -- & $97.47{\pm}0.66$ & $83.23{\pm}1.
 \footnotetext{The COCO-pretrained row differs only in initialization. Recall$^{\ddagger}$ uses each model's highest-scoring box (the detector's top detection per patch).}
 \end{table*}
 
-At a score threshold of 0.5, EMA-Det accepts $96.08\pm0.47\%$ of the targets,
+\subsection{CBAM Trade-off and Initialization Ablations}\label{sec:cbam}
+
+Table~\ref{tab:cbam} reports the controlled $N{=}5$ comparison, including
+the bounding-box head ablation (Section~\ref{sec:spatialbbox}). Both CBAM
+rows use the default spatial bbox head.
+
+\looseness=-1 The last four rows test how far the network can shrink or change:
+depthwise-separable Blocks~4--6 (0.30M parameters, 265.6M FLOPs), Block~6
+narrowed to 128 channels (0.93M, 404.2M FLOPs), a multi-scale box head
+(+0.19M) and a centre-based box head (+0.12M, 483.8M FLOPs). The centre-based
+head predicts a target-centre heat map and, per cell, an offset and a size on a
+$16{\times}16$ grid fused from Blocks~3, 4 and 6 (CenterNet focal loss; CIoU plus
+L1 on the $3{\times}3$ cells around the centre); its detection score is the
+classification probability times the heat-map peak, so it reflects localization
+quality. A paired $t$-test over the five seeds finds no significant difference
+from the default for the first three variants ($p>0.05$; the multi-scale head,
+better in a single-seed pilot, did not hold). The centre-based head changes
+localization only: mAP@0.5 rises from $58.03$ to $73.58\%$ ($p=0.0001$),
+mAP@0.5:0.95 from $28.04$ to $40.60\%$ ($p=0.005$) and box recall from $71.7$ to
+$77.6\%$ ($p=0.003$), with recall and AUROC unchanged ($p=0.53$, $0.40$); strict-IoU
+metrics vary more across seeds (mAP@0.5:0.95: 44.8, 44.2, 44.7, 36.4, 32.9\%). We
+keep the regression head and standard convolutions as default, since this
+paper's early-exit, cross-sensor and CBAM results use them and for the hardware
+reasons in Section~\ref{sec:intro}; with depthwise blocks Gate~2 sits after 95\% of
+the compute instead of 83\%, so early exit saves much less.
+
+\looseness=-1 With the spatial bbox head, a paired $t$-test over the five matched seeds
+finds no significant difference between configurations in mAP@0.5, mAP@0.75
+or mAP@0.5:0.95 ($p=0.89$, $0.77$, $0.83$). CBAM still costs recall:
+$93.23\pm1.37\%$ against $96.08\pm0.47\%$ (paired $t$-test, $p=0.017$). With
+the legacy pooled-vector head, 2 of 5 CBAM seeds collapsed to 74--79\%
+recall (std $8.85$); this is absent with the spatial head (worst run
+90.8\%). CBAM's benefit there thus seems to have made up for spatial
+information that pooling had discarded; once that is restored it adds no
+localization benefit, so the final architecture leaves it out.
+
+\looseness=-1 \textbf{Initialization.} The two initialization rows of Table~\ref{tab:cbam}
+repeat EMA-Det with a random first layer and with the twelve fixed kernels
+frozen (same seeds and protocol). The differences are within noise (paired
+$t$-test, random initialization: mAP@0.5 $p=0.98$, recall $p=0.93$; frozen
+kernels: $p=0.44$ and $0.26$). The prior thus brings no measurable gain, and we
+make no performance claim for it. The frozen channels could be computed with
+shifts and additions instead of multipliers; we have not synthesized this variant.
+
+\subsection{Comparison with Lightweight Baselines}\label{sec:baselines}
+
+\looseness=-1 At a score threshold of 0.5, EMA-Det accepts $96.08\pm0.47\%$ of the targets,
 against $69.94\pm1.64\%$ for a from-scratch and $77.91\pm2.82\%$ for a
 COCO-pretrained YOLOv8n~\cite{jocher2023yolov8}. This partly reflects the
 threshold: at 0.1 YOLOv8n accepts $96.0\%$ and $97.5\%$, but at a precision of
@@ -457,27 +456,23 @@ except for the AUROC against the COCO-pretrained model, $p=0.047$), with 19
 times fewer FLOPs. Localization is the opposite. With a box-overlap
 requirement (Recall$^{\ddagger}$), EMA-Det reaches $71.7\%$, no better than the
 COCO-pretrained YOLOv8n ($70.8\%$ at 0.5, $83.2\%$ at 0.1), and its
-mAP@0.5:0.95 is far lower ($28.04\pm1.90\%$ against $49.59\pm0.45\%$ and
-$54.10\pm1.48\%$), reflecting YOLOv8n's multi-scale, distribution-focal-loss
-(DFL) localization. The detector's own validation recall ($73.75\pm1.86\%$,
-$78.17\pm0.57\%$) is box-level at its best-F1 threshold and not comparable.
-EMA-Det is thus the better verifier, not the better detector. Given
+mAP@0.5:0.95 is far lower ($28.04\%$ against $49.59\%$ and $54.10\%$), reflecting
+YOLOv8n's multi-scale, distribution-focal-loss (DFL) localization. A centre-based box head (Section~\ref{sec:cbam}) narrows the gap
+(mAP@0.5 $73.58\pm1.63\%$, mAP@0.5:0.95 $40.60\pm4.99\%$, box recall $77.6\%$,
+at 14\% more FLOPs). EMA-Det is thus the better verifier and, with that head, a competitive but weaker detector. Given
 $R_{\text{total}} = R_{\text{proposal}} \times R_{\text{verifier}}$, the acceptance
 rate at a given false-alarm rate bounds system recall, and mAP does not predict it.
 
-MobileNetV3-Small~\cite{howard2019mobilenetv3} and ShuffleNetV2
+\looseness=-1 MobileNetV3-Small~\cite{howard2019mobilenetv3} and ShuffleNetV2
 x0.5~\cite{ma2018shufflenet}, trained with the same head and protocol, are
 closer. EMA-Det's AUROC exceeds theirs ($0.980\pm0.003$, $0.975\pm0.003$), and
 at a $5\%$ false-positive rate it accepts $96.3\pm1.0\%$ of the targets against
 $90.4\pm2.1\%$ and $88.2\pm2.9\%$ ($p<0.01$); their mAP is within the seed spread
 of EMA-Det's. The price is computation: 423.1M FLOPs, 11 and 17 times those of
 MobileNetV3-Small (38.0M) and ShuffleNetV2 (24.9M), which also have fewer
-parameters. The variant with Block~6 narrowed (Table~\ref{tab:baselines}, 0.93M
-parameters, the size of MobileNetV3-Small) reaches an AUROC of $0.990\pm0.001$
-and $96.6\pm0.7\%$ acceptance at a $5\%$ false-positive rate ($p<0.01$ against
-both; against the COCO-pretrained YOLOv8n, $p=0.003$ and $0.02$), and the depthwise
-variant (0.30M) keeps an AUROC of $0.989\pm0.002$; they cost 7 to 17 times the FLOPs
-of the two backbones. Early exit lowers EMA-Det's average FLOPs per RoI
+parameters. The narrowed (0.93M parameters, the size of MobileNetV3-Small) and depthwise
+(0.30M) variants of Table~\ref{tab:baselines} keep AUROCs of $0.990\pm0.001$ and
+$0.989\pm0.002$, at 7 to 17 times their FLOPs. Early exit lowers EMA-Det's average FLOPs per RoI
 (Section~\ref{sec:earlyexit}) but not to their level. We have not isolated why
 EMA-Det separates targets better.
 
@@ -519,8 +514,7 @@ $95.70\pm0.59\%$ ($0.95$). The 12.5--21.2\% FLOPs saving thus costs
 A per-layer translation of the Block1$\to$Gate1$\to$Block4$\to$Gate2 path
 into synthesizable C++ for high-level synthesis (HLS), with trained,
 BatchNorm-folded weights validated against PyTorch, is in
-\texttt{hardware/}. A static bit-width analysis
-(\texttt{src/estimate\_hls\_bram.py}) identified on-chip memory as the main
+\texttt{hardware/}. A static bit-width analysis identified on-chip memory as the main
 constraint of the Zynq-7020 (630~KB; Block~1 alone used 30.3\%), which
 motivated a 3-row line buffer (768~B) instead of a full-frame buffer. Block~1 was synthesized with Vitis Unified IDE 2025.2
 (\texttt{xc7z020clg484-1}, 10~ns clock). C-simulation against the PyTorch
@@ -542,7 +536,7 @@ latency of 36{,}489 clock cycles ($\approx$365\,$\mu$s per image,
 $\approx$2{,}740 images/s for this kernel alone). One layer is thus
 verified numerically, by resource synthesis and by RTL co-simulation.
 
-This covers only Block~1 (of six blocks plus two gates). It fully unrolls
+\looseness=-1 This covers only Block~1 (of six blocks plus two gates). It fully unrolls
 every multiply--accumulate (MAC) operation (one multiplier per MAC,
 initiation interval II$=1$), costing 145 DSPs for 144 MACs per pixel, which
 is affordable only with one input channel. Block~2's second convolution
@@ -554,23 +548,21 @@ designed yet: one layer is verified end to end, and the rest of the mapping
 is quantified but unsolved. The roadmap follows from these figures.
 (i)~\emph{Tiled PE array.} With $T_m$ output $\times$ $T_n$ input channels in
 parallel and $T_mT_n\le 220$ DSPs, a layer takes MACs$/(T_mT_n)$
-cycles~\cite{zhang2015fpga}; for the remaining $\approx$421M MACs (423.1M from
-\texttt{thop} minus Block~1's 2.4M), all 220 DSPs at one MAC per cycle bound
-the latency from below at $\approx$1.9M cycles ($\approx$14\,ms at 137\,MHz,
-$\approx$72 images/s), before memory stalls. (ii)~\emph{Weight streaming.} The
+cycles~\cite{zhang2015fpga}; the remaining $\approx$421M MACs (423.1M from
+\texttt{thop} minus Block~1's 2.4M) then bound the latency from below at
+$\approx$1.9M cycles ($\approx$14\,ms at 137\,MHz, $\approx$72 images/s), before
+memory stalls. (ii)~\emph{Weight streaming.} The
 1.53M parameters need $\approx$3.1\,MB at 16 bit ($\approx$1.5\,MB at 8 bit),
 against 0.63\,MB of BRAM, so the weights of Blocks~2--6 must be streamed from
 external double-data-rate (DDR) memory with double buffering, while
 activations stay in line buffers as in Block~1; 8-bit quantization would halve
-this traffic at an accuracy cost still to be measured. The depthwise variant
-(Section~\ref{sec:cbam}) would fit on chip at 8 bit ($\approx$0.3\,MB) but
-raises bandwidth pressure, and we have not synthesized it.
+this traffic at an accuracy cost still to be measured.
 (iii)~\emph{Per-block validation.} Each block would repeat Block~1's chain of
 C-simulation, synthesis and co-simulation.
 
 \subsection{Cross-Sensor Generalization}\label{sec:crosssensor}
 
-To test transfer to an unseen modality, we built an RoI verification
+\looseness=-1 To test transfer to an unseen modality, we built an RoI verification
 dataset from the Anti-UAV410 thermal-IR benchmark~\cite{antiuav410}, using
 its native video-level split (one video, \texttt{02\_6319}, appeared in both
 partitions and was excluded). Positive patches were cropped around the
@@ -584,12 +576,12 @@ head, no CBAM) was evaluated on the thermal val/test splits without
 fine-tuning. Precision stays high (95.31\% val, 95.53\% test), but recall
 falls from the EO in-domain $96.08\pm0.47\%$ (Table~\ref{tab:cbam}) to
 86.29\% (val) and 80.12\% (test), and mAP@0.5 from 58.03\% to 52.05\% and
-39.38\% (mAP@0.5:0.95: 21.82\% and 15.77\%). The learned features keep
+39.38\%. The learned features keep
 their discriminative signal across modalities, but the difference between
 EO and thermal silhouettes accounts for a sizeable share of the missed
 detections.
 
-\textbf{Thermal-from-scratch reference.} To bound the zero-shot result,
+\looseness=-1 \textbf{Thermal-from-scratch reference.} To bound the zero-shot result,
 EMA-Det (final) was trained from scratch on the thermal train/val split under
 the same protocol ($N{=}5$ seeds): mAP@0.5 $89.52\pm0.93\%$, mAP@0.5:0.95
 $51.82\pm1.62\%$, recall $91.64\pm0.41\%$ and precision $97.55\pm0.39\%$.
@@ -600,38 +592,38 @@ thus reaches 89.5\% mAP@0.5 on thermal data, which points to domain shift
 rather than an architectural ceiling.
 
 \section{Limitations}\label{sec:limitations}
-\textbf{Dataset size.} Deduplication leaves 4{,}136 patches
+\looseness=-1 \textbf{Dataset size.} Deduplication leaves 4{,}136 patches
 (Section~\ref{sec:leakage}). \textbf{Cross-sensor generalization.} One
 benchmark (Anti-UAV410); no domain adaptation or multi-sensor training.
 \textbf{Hardware validation.} Only Block~1 is validated; the time-multiplexed
 MAC array for Blocks~2--6 is unsolved (roadmap in Section~\ref{sec:hardware})
 and no on-board latency or power is reported. \textbf{Early exit.} It costs
-0.4--1.0 recall points (Section~\ref{sec:earlyexit}), and FPS is a GPU proxy.
-\textbf{Initialization.} The Laplacian/Sobel prior shows no measurable gain
-(Section~\ref{sec:cbam}). \textbf{Localization.} EMA-Det regresses one box from
-a $4{\times}4$ map; its box recall and mAP@0.5:0.95 are well below those of
-YOLOv8n, so it is a verifier, not a replacement detector. \textbf{Recall
+0.4--1.0 recall points (Section~\ref{sec:earlyexit}), and FPS is a GPU proxy; the
+Laplacian/Sobel prior shows no measurable gain (Section~\ref{sec:cbam}). \textbf{Localization.} The default EMA-Det regresses one box from a
+$4{\times}4$ map; its mAP is well below YOLOv8n's, and the centre-based head narrows but
+does not close the gap and is less stable across seeds, so EMA-Det is a verifier rather than a
+replacement detector. \textbf{Recall
 definition.} Our recall is a classification-level acceptance rate that depends
 on the score threshold (Table~\ref{tab:baselines}), so we also compare at a
 fixed false-positive rate; all comparisons use one dataset.
 
 \section{Conclusion}\label{sec:conclusion}
-This extended version reports EMA-Det under a controlled protocol with
-$N{=}5$ seeds on a source-level-split, deduplicated dataset. Decoupling the box
-head from the pooled classification feature improves localization and explains
-most of the earlier benefit of CBAM. Comparison with YOLOv8n and lightweight
+\looseness=-1 This extended version reports EMA-Det under a controlled protocol ($N{=}5$ seeds,
+source-level-split, deduplicated dataset). Decoupling the box head from the
+pooled classification feature improves localization and explains most of the
+earlier benefit of CBAM. Comparison with YOLOv8n and lightweight
 backbones shows that mAP alone is an unreliable guide to verifier quality: in a
 two-stage cascade, system-level recall is bounded by the verifier's acceptance
 rate, not by its mAP. EMA-Det separates targets better than MobileNetV3-Small
 and ShuffleNetV2 at higher computational cost, and than YOLOv8n at a fixed
-false-alarm rate with far fewer FLOPs, but its localization is weaker. Early
+false-alarm rate with far fewer FLOPs, but its localization is weaker, which a
+centre-based box head narrows without closing. Early
 exit saves 12.5--21.2\% of FLOPs for 0.4--1.0 recall points, and the
 cross-sensor evaluation quantifies a real but not catastrophic EO$\to$thermal
 gap. A synthesized first block and a quantified roadmap scope the work that
 remains for a full FPGA mapping. We release the dataset-construction and
-evaluation tools (\texttt{build\_dataset\_clean.py}, \texttt{check\_leakage.py},
-\texttt{check\_raw\_duplicates.py}) so that similar datasets can be built
-reproducibly from web-scraped imagery.
+evaluation tools so that similar datasets can be built reproducibly from
+web-scraped imagery.
 
 \backmatter
 
@@ -645,8 +637,7 @@ This work received no specific grant, scholarship, or institutional funding.
 The authors declare no conflict of interest.
 
 \bmhead{Ethics approval and consent to participate}
-Not applicable (no human/animal subjects; UAV imagery is from public
-third-party collections, Section~\ref{sec:leakage}).
+Not applicable (no human or animal subjects; public imagery, Section~\ref{sec:leakage}).
 
 \bmhead{Consent for publication and materials availability}
 Not applicable.
@@ -663,10 +654,10 @@ All model, training, dataset-construction, and evaluation code is
 available at \href{https://github.com/enesmertaydn/ema-det}{github.com/enesmertaydn/ema-det}.
 
 \bmhead{Author contribution}
-E.M.A.\ conceptualized the study and developed the architecture,
-dataset pipeline, training/evaluation code, and hardware synthesis, and
-wrote the manuscript. O.T.\ and E.\c{C}.\ supervised the work and
-reviewed the manuscript. All authors approved the final manuscript.
+E.M.A.\ conceptualized the study, developed the architecture, dataset
+pipeline, code and hardware synthesis, and wrote the manuscript. O.T.\ and
+E.\c{C}.\ supervised the work and reviewed the manuscript. All authors
+approved the final manuscript.
 
 {\footnotesize\setlength{\itemsep}{0pt}
 \bibliography{refs}}

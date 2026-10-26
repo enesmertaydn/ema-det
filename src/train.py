@@ -42,7 +42,7 @@ from torch.utils.data import DataLoader
 
 from dataset import DroneDetectDataset
 from ema_det import EMADet, EMADetOutput
-from losses import ciou_loss, box_iou_elementwise
+from losses import ciou_loss, box_iou_elementwise, center_head_loss
 
 try:
     from thop import profile as thop_profile
@@ -79,6 +79,7 @@ class Config:
     c6: int = 256                   # Block-6 width (pilot: 128 = narrow variant, tag "_c6<w>")
     ds_deep: bool = False           # depthwise-separable Blocks 4-6 (pilot, tag "_dsdeep")
     aug_v2: bool = False            # label-consistent scale/rotation/translation + target-safe occlusion (tag "_augv2")
+    center_head: bool = False       # centre-based localization head (tag "_centerhead")
     kd_w: float = 0.0               # >0: feature distillation from a COCO YOLOv8n teacher (train only, tag "_kd")
     fusion_bbox: bool = False       # True: multi-scale box head (pilot, tag "_fusionbbox")
     freeze_kernels: bool = False    # True: keep the 12 fixed Laplacian/Sobel kernels frozen (ablation only, tag "_frozen")
@@ -135,7 +136,7 @@ def _kd_loss(student_feats, adapters, teacher_feats):
 
 def _arch_suffix(cfg) -> str:
     """Tag suffix distinguishing architecture variants (legacy head, random init)."""
-    return ("_legacygapbbox" if not cfg.use_spatial_bbox else "") + ("_randinit" if not cfg.physical_init else "") + ("_frozen" if cfg.freeze_kernels else "") + ("_fusionbbox" if cfg.fusion_bbox else "") + ("_c6%d" % cfg.c6 if cfg.c6 != 256 else "") + ("_dsdeep" if cfg.ds_deep else "") + ("_kd" if cfg.kd_w > 0 else "") + ("_augv2" if cfg.aug_v2 else "")
+    return ("_legacygapbbox" if not cfg.use_spatial_bbox else "") + ("_randinit" if not cfg.physical_init else "") + ("_frozen" if cfg.freeze_kernels else "") + ("_fusionbbox" if cfg.fusion_bbox else "") + ("_c6%d" % cfg.c6 if cfg.c6 != 256 else "") + ("_dsdeep" if cfg.ds_deep else "") + ("_kd" if cfg.kd_w > 0 else "") + ("_augv2" if cfg.aug_v2 else "") + ("_centerhead" if cfg.center_head else "")
 
 
 # ==============================================================================
@@ -247,7 +248,8 @@ def _cxcywh_to_xyxy(boxes: torch.Tensor, img_size: int = 1) -> torch.Tensor:
 
 def _accumulate_batch(metric, tp, fp, fn, iou_sum, iou_cnt, scores: torch.Tensor,
                        pred_bbox: torch.Tensor, lbls: torch.Tensor, gt_bbox: torch.Tensor,
-                       img_size: int, conf_thresh: float, has_pred: Optional[torch.Tensor] = None):
+                       img_size: int, conf_thresh: float, has_pred: Optional[torch.Tensor] = None,
+                       map_scores: Optional[torch.Tensor] = None):
     """
     Vectorized per-batch bookkeeping shared by both evaluate() paths.
 
@@ -268,7 +270,7 @@ def _accumulate_batch(metric, tp, fp, fn, iou_sum, iou_cnt, scores: torch.Tensor
     preds_tm, targets_tm = [], []
     for i in range(scores.size(0)):
         if has_pred[i]:
-            preds_tm.append({"boxes": pred_xyxy[i:i+1], "scores": scores[i:i+1], "labels": torch.tensor([0])})
+            preds_tm.append({"boxes": pred_xyxy[i:i+1], "scores": (map_scores if map_scores is not None else scores)[i:i+1], "labels": torch.tensor([0])})
         else:
             preds_tm.append({"boxes": torch.zeros((0, 4)), "scores": torch.zeros(0), "labels": torch.zeros(0, dtype=torch.long)})
         if gt_pos[i]:
@@ -324,7 +326,7 @@ def evaluate(model: nn.Module, data_dir: str, device: torch.device, img_size: in
                 scores = torch.sigmoid(out.cls_logit)
                 tp, fp, fn, iou_sum, iou_cnt = _accumulate_batch(
                     metric, tp, fp, fn, iou_sum, iou_cnt, scores, out.bbox, lbls, bboxes,
-                    img_size, conf_thresh)
+                    img_size, conf_thresh, map_scores=out.det_score)
     else:
         img_paths = sorted(
             glob.glob(os.path.join(data_dir, "images", "*.jpg")) +
@@ -381,7 +383,7 @@ def train_one_run(seed: int, use_attention: bool, cfg: Config, device: torch.dev
 
     set_seed(seed)
     model = EMADet(use_attention=use_attention, use_spatial_bbox=cfg.use_spatial_bbox,
-                   physical_init=cfg.physical_init, fusion_bbox=cfg.fusion_bbox, c6=cfg.c6, ds_deep=cfg.ds_deep).to(device)
+                   physical_init=cfg.physical_init, fusion_bbox=cfg.fusion_bbox, c6=cfg.c6, ds_deep=cfg.ds_deep, center_head=cfg.center_head).to(device)
 
     flops_str, params_str, n_params = measure_complexity(model, device, cfg.img_size)
     print(f"  Params: {params_str} ({n_params:,})   FLOPs: {flops_str}")
@@ -436,8 +438,12 @@ def train_one_run(seed: int, use_attention: bool, cfg: Config, device: torch.dev
 
             loss_cls = bce(cls_out, lbls)
             pos_mask = (lbls == 1.0)
-            loss_bbox = (ciou_loss(out.bbox[pos_mask], bboxes[pos_mask])
-                         if pos_mask.sum() > 0 else torch.tensor(0.0, device=device))
+            if cfg.center_head:
+                l_hm, l_cbox = center_head_loss(out.aux["hm"], out.aux["reg"], bboxes, pos_mask)
+                loss_bbox = l_cbox + l_hm / max(cfg.lambda_bbox, 1e-6)      # heat-map term enters with weight 1 after the lambda_bbox factor
+            else:
+                loss_bbox = (ciou_loss(out.bbox[pos_mask], bboxes[pos_mask])
+                             if pos_mask.sum() > 0 else torch.tensor(0.0, device=device))
             loss_e1 = bce(e1_out, lbls)
             loss_e2 = bce(e2_out, lbls)
 
@@ -578,6 +584,9 @@ class _MainWrapper(nn.Module):
     def forward(self, x):
         feat_map = self.m._gate2_to_feature_map(x)
         pooled = self.m._pool_and_dropout(feat_map)
+        if self.m.center_head:
+            hm, reg = self.m.ctr(self.m._p3, self.m._p4, feat_map)
+            return torch.cat([self.m.cls_head(pooled), hm.flatten(1), reg.flatten(1)], dim=1)
         return torch.cat([self.m.cls_head(pooled), self.m.bbox_head(self.m._bbox_input(feat_map, pooled))], dim=1)
 
 
@@ -682,6 +691,7 @@ def main():
     parser.add_argument("--fusion_bbox", action="store_true", help="pilot: multi-scale (16x16 + 4x4) box head")
     parser.add_argument("--c6", type=int, default=256, help="pilot: Block-6 output width")
     parser.add_argument("--ds_deep", action="store_true", help="pilot: depthwise-separable Blocks 4-6")
+    parser.add_argument("--center_head", action="store_true", help="pilot: centre-based localization head (heat map + offset + size)")
     parser.add_argument("--kd_w", type=float, default=0.0, help="pilot: feature-distillation weight (0 = off)")
     parser.add_argument("--aug_v2", action="store_true", help="pilot: label-consistent geometric augmentation")
     args = parser.parse_args()
@@ -698,6 +708,7 @@ def main():
     cfg.fusion_bbox = args.fusion_bbox
     cfg.c6 = args.c6
     cfg.kd_w = args.kd_w
+    cfg.center_head = args.center_head
     cfg.aug_v2 = args.aug_v2
     cfg.ds_deep = args.ds_deep
 
@@ -715,7 +726,7 @@ def main():
     if False in configs_to_run:
         final_tag = "final" + _arch_suffix(cfg)
         best_final = EMADet(use_attention=False, use_spatial_bbox=cfg.use_spatial_bbox,
-                            physical_init=cfg.physical_init, fusion_bbox=cfg.fusion_bbox, c6=cfg.c6, ds_deep=cfg.ds_deep).to(torch.device(cfg.device))
+                            physical_init=cfg.physical_init, fusion_bbox=cfg.fusion_bbox, c6=cfg.c6, ds_deep=cfg.ds_deep, center_head=cfg.center_head).to(torch.device(cfg.device))
         best_final.load_state_dict(torch.load(results[final_tag]["best_ckpt"], map_location=cfg.device))
         ee_rows = analyze_early_exit_table(best_final, cfg)
         print_early_exit_table(ee_rows)
