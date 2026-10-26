@@ -429,6 +429,7 @@ synthesized this variant.
 Model & mAP@0.5 & mAP@0.5:0.95 & Recall$^{\dagger}$ & Recall$^{\ddagger}$ & Params & FLOPs \\
 \midrule
 EMA-Det (final) & $58.03{\pm}1.60$ & $28.04{\pm}1.90$ & $\mathbf{96.08{\pm}0.47}$ & $71.71{\pm}1.41$ & 1.53M & 423.1M \\
+EMA-Det, Block~6 narrowed to 128 ch & $58.58{\pm}0.99$ & $29.72{\pm}1.78$ & $96.65{\pm}0.55$ & $72.59{\pm}0.55$ & 0.93M & 404.2M \\
 EMA-Det, depthwise Blocks 4--6 & $57.30{\pm}1.62$ & $26.40{\pm}2.24$ & $96.27{\pm}1.03$ & $71.14{\pm}0.61$ & 0.30M & 265.6M \\
 YOLOv8n (scratch) & $79.45{\pm}0.69$ & $49.59{\pm}0.45$ & $69.94{\pm}1.64$ & $62.78{\pm}1.40$ & 3.01M & 8.2G \\
 YOLOv8n (COCO-pretrained) & $\mathbf{84.02{\pm}0.61}$ & $\mathbf{54.10{\pm}1.48}$ & $77.91{\pm}2.82$ & $70.76{\pm}2.26$ & 3.01M & 8.2G \\
@@ -471,8 +472,12 @@ at a $5\%$ false-positive rate it accepts $96.3\pm1.0\%$ of the targets against
 $90.4\pm2.1\%$ and $88.2\pm2.9\%$ ($p<0.01$); their mAP is within the seed spread
 of EMA-Det's. The price is computation: 423.1M FLOPs, 11 and 17 times those of
 MobileNetV3-Small (38.0M) and ShuffleNetV2 (24.9M), which also have fewer
-parameters. The depthwise variant (Table~\ref{tab:baselines}, 0.30M parameters) keeps an AUROC
-of $0.989\pm0.002$, at 11 and 7 times their FLOPs. Early exit lowers EMA-Det's average FLOPs per RoI
+parameters. The variant with Block~6 narrowed (Table~\ref{tab:baselines}, 0.93M
+parameters, the size of MobileNetV3-Small) reaches an AUROC of $0.990\pm0.001$
+and $96.6\pm0.7\%$ acceptance at a $5\%$ false-positive rate ($p<0.01$ against
+both; against the COCO-pretrained YOLOv8n, $p=0.003$ and $0.02$), and the depthwise
+variant (0.30M) keeps an AUROC of $0.989\pm0.002$; they cost 7 to 17 times the FLOPs
+of the two backbones. Early exit lowers EMA-Det's average FLOPs per RoI
 (Section~\ref{sec:earlyexit}) but not to their level. We have not isolated why
 EMA-Det separates targets better.
 
