@@ -79,22 +79,32 @@ see Roadmap).
 
 ### Comparison with lightweight baselines (same clean data, N=5, identical protocol)
 
-| Model | mAP@0.5 | mAP@0.5:0.95 | Recall | Params | FLOPs |
-|---|---|---|---|---|---|
-| EMA-Det (final) | 58.03±1.60% | 28.04±1.90% | **96.08±0.47%** | 1.53M | 423.1M |
-| YOLOv8n (scratch) | 79.45±0.69% | 49.59±0.45% | 73.75±1.86% | 3.01M | 8.2G |
-| YOLOv8n (COCO-pretrained) | **84.02±0.61%** | **54.10±1.48%** | 78.17±0.57% | 3.01M | 8.2G |
-| MobileNetV3-Small (scratch) | 57.04±4.51% | 26.35±3.41% | 94.05±1.39% | 0.93M | 38.0M |
-| ShuffleNetV2 x0.5 (scratch) | 56.26±2.11% | 25.68±1.37% | 93.80±1.11% | 0.35M | 24.9M |
+Recall† = target patches accepted at score >= 0.5 (box not checked); Recall‡ = accepted with a box of IoU >= 0.5.
 
-YOLOv8n's mAP is ~1.8-1.9x EMA-Det's, but its recall is ~18-22 points lower (COCO pretraining
-narrows the gap by 4.4 points but does not close it) and tight across seeds (not seed noise;
-whether the cause is architectural is not established) — the clearest concrete illustration of this project's central
-argument: since system recall is
-`R_total = R_proposal × R_verifier`, a verifier optimized for mAP can look stronger on the
-metric everyone reports while being the weaker link for actual two-stage system
-performance. The two generic lightweight backbones land close to EMA-Det on both metrics
-with fewer parameters, but without EMA-Det's early-exit compute savings.
+| Model | mAP@0.5 | mAP@0.5:0.95 | Recall† | Recall‡ | Params | FLOPs |
+|---|---|---|---|---|---|---|
+| EMA-Det (final) | 58.03±1.60% | 28.04±1.90% | **96.08±0.47%** | 71.71±1.41% | 1.53M | 423.1M |
+| EMA-Det, depthwise Blocks 4-6 | 57.30±1.62% | 26.40±2.24% | 96.27±1.03% | 71.14±0.61% | 0.30M | 265.6M |
+| YOLOv8n (scratch) | 79.45±0.69% | 49.59±0.45% | 69.94±1.64% | 62.78±1.40% | 3.01M | 8.2G |
+| YOLOv8n (COCO-pretrained) | **84.02±0.61%** | **54.10±1.48%** | 77.91±2.82% | 70.76±2.26% | 3.01M | 8.2G |
+| MobileNetV3-Small (scratch) | 57.04±4.51% | 26.35±3.41% | 94.05±1.39% | 68.99±2.74% | 0.93M | 38.0M |
+| ShuffleNetV2 x0.5 (scratch) | 56.26±2.11% | 25.68±1.37% | 93.80±1.11% | 67.09±1.18% | 0.35M | 24.9M |
+
+**Correction (October 2026).** Earlier versions of this README and of the manuscript compared EMA-Det's recall
+(classification level, score >= 0.5, no box check, `src/train.py`) with YOLOv8n's recall as printed by Ultralytics
+(box level, IoU 0.5, best-F1 threshold: 73.75±1.86% scratch, 78.17±0.57% COCO-pretrained). These are not the same
+quantity. Measured under one definition and across score thresholds (`src/recall_definitions.py`,
+`results/recall_definitions.json`), YOLOv8n's low recall at the default threshold is partly a threshold effect (at 0.1 it accepts
+96.0% / 97.5% of the targets, but at a precision of 86.2% / 88.4% against 95.0% for EMA-Det). At a fixed 5% false-positive rate
+(`src/threshold_free_cls.py`, `src/yolo_threshold_free.py`), EMA-Det accepts 96.3±1.0% of the targets, against 88.4±2.8%
+(COCO-pretrained YOLOv8n), 79.5±3.1% (scratch), 90.4±2.1% (MobileNetV3-Small) and 88.2±2.9% (ShuffleNetV2); AUROC
+0.987 vs. 0.978 / 0.968 / 0.980 / 0.975. With a box-overlap requirement, however, EMA-Det (71.7%) is not ahead of the
+COCO-pretrained YOLOv8n (70.8%), and its mAP@0.5:0.95 is far lower. So EMA-Det is the better *verifier* at a fixed false-alarm
+rate, not the better *detector*, and it needs 11x / 17x the FLOPs of MobileNetV3-Small / ShuffleNetV2.
+
+Size ablations (5 seeds each, `src/variants_eval.py`, `results/variants_eval.json`): depthwise-separable Blocks 4-6 (0.30M params),
+Block 6 narrowed to 128 channels (0.93M) and a multi-scale box head (1.72M) show no significant difference from the default in any metric
+(paired t-test, all p > 0.05). The default keeps standard convolutions for the hardware reasons given in the paper.
 
 ### Initialization ablation: Laplacian/Sobel vs. random first layer (N=5)
 
@@ -159,6 +169,9 @@ src/
   plot_featuremaps.py                       # Block 1 feature maps (paper Fig. 2) and kernel-drift statistic
   init_ablation_exact.py / init_ablation_analysis.py   # Laplacian/Sobel vs. random-init ablation
   frozen_ablation.py                                    # frozen vs. trainable fixed kernels (eval + stats)
+  recall_definitions.py / lightweight_box_recall.py      # recall under one definition: score thresholds, box overlap
+  threshold_free_cls.py / yolo_threshold_free.py          # AUROC and recall at a fixed false-positive rate (EMA-Det, lightweight, YOLOv8n)
+  variants_eval.py / legacy_fill.py                        # size variants (5 seeds, paired tests); legacy-head precision/F1/IoU
   export_onnx.py                          # ONNX export + PyTorch/ONNX parity + latency benchmark
   export_hls_weights.py                    # extracts trained weights for hardware/hls/
   make_architecture_figure.py               # generates paper/architecture.png
@@ -195,6 +208,10 @@ python src/train_yolov8n_pretrained.py                # COCO-pretrained YOLOv8n,
 python src/train.py --only final --random_init        # random first-layer init, 5 seeds
 python src/init_ablation_exact.py && python src/init_ablation_analysis.py
 python src/plot_featuremaps.py                        # paper Fig. 2
+python src/recall_definitions.py                      # recall at several thresholds / with and without box overlap
+python src/threshold_free_cls.py && python src/yolo_threshold_free.py   # AUROC, recall at 5% false-positive rate
+python src/train.py --only final --ds_deep --seeds 42   # size variants: also --c6 128, --fusion_bbox (one seed per run)
+python src/variants_eval.py                            # 5-seed evaluation and paired tests of the variants
 ```
 
 `python src/ema_det.py` runs the model's self-test (shape/gradient/gate-logic checks)

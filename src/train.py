@@ -76,6 +76,11 @@ class Config:
     lambda_e2:   float = 0.4
 
     physical_init: bool = True      # False: random first-layer init (ablation only, tag "_randinit")
+    c6: int = 256                   # Block-6 width (pilot: 128 = narrow variant, tag "_c6<w>")
+    ds_deep: bool = False           # depthwise-separable Blocks 4-6 (pilot, tag "_dsdeep")
+    aug_v2: bool = False            # label-consistent scale/rotation/translation + target-safe occlusion (tag "_augv2")
+    kd_w: float = 0.0               # >0: feature distillation from a COCO YOLOv8n teacher (train only, tag "_kd")
+    fusion_bbox: bool = False       # True: multi-scale box head (pilot, tag "_fusionbbox")
     freeze_kernels: bool = False    # True: keep the 12 fixed Laplacian/Sobel kernels frozen (ablation only, tag "_frozen")
     use_spatial_bbox: bool = True   # default architecture (see EMADet's docstring):
                                      # bbox head reads the pre-GAP 256x4x4 feature map.
@@ -97,9 +102,40 @@ class Config:
     device:      str   = "cuda" if torch.cuda.is_available() else "cpu"
 
 
+class FeatureTeacher:
+    """COCO-pretrained YOLOv8n (trained on the TRAIN split only) used for feature distillation.
+    Returns its P3/P4/P5 neck outputs (64x16x16, 128x8x8, 256x4x4 at 128x128 input)."""
+
+    def __init__(self, seed: int, device):
+        from ultralytics import YOLO
+        w = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "results", "yolov8n_pretrained",
+                         "yolov8n_coco_seed%d" % seed, "weights", "best.pt")
+        self.m = YOLO(w).model.to(device).float().eval()
+        for p_ in self.m.parameters():
+            p_.requires_grad_(False)
+        self.feats = {}
+        for idx in (15, 18, 21):
+            self.m.model[idx].register_forward_hook(lambda mod, i, o, k=idx: self.feats.__setitem__(k, o))
+
+    @torch.no_grad()
+    def __call__(self, imgs):
+        self.m(imgs.repeat(1, 3, 1, 1))
+        return [self.feats[15], self.feats[18], self.feats[21]]
+
+
+def _kd_loss(student_feats, adapters, teacher_feats):
+    """Mean over levels of 1 - cosine similarity (per location) between adapted student and teacher features."""
+    tot = 0.0
+    for sf, ad, tf in zip(student_feats, adapters, teacher_feats):
+        a = torch.nn.functional.normalize(ad(sf), dim=1)
+        b = torch.nn.functional.normalize(tf, dim=1)
+        tot = tot + (1.0 - (a * b).sum(1)).mean()
+    return tot / len(student_feats)
+
+
 def _arch_suffix(cfg) -> str:
     """Tag suffix distinguishing architecture variants (legacy head, random init)."""
-    return ("_legacygapbbox" if not cfg.use_spatial_bbox else "") + ("_randinit" if not cfg.physical_init else "") + ("_frozen" if cfg.freeze_kernels else "")
+    return ("_legacygapbbox" if not cfg.use_spatial_bbox else "") + ("_randinit" if not cfg.physical_init else "") + ("_frozen" if cfg.freeze_kernels else "") + ("_fusionbbox" if cfg.fusion_bbox else "") + ("_c6%d" % cfg.c6 if cfg.c6 != 256 else "") + ("_dsdeep" if cfg.ds_deep else "") + ("_kd" if cfg.kd_w > 0 else "") + ("_augv2" if cfg.aug_v2 else "")
 
 
 # ==============================================================================
@@ -345,7 +381,7 @@ def train_one_run(seed: int, use_attention: bool, cfg: Config, device: torch.dev
 
     set_seed(seed)
     model = EMADet(use_attention=use_attention, use_spatial_bbox=cfg.use_spatial_bbox,
-                   physical_init=cfg.physical_init).to(device)
+                   physical_init=cfg.physical_init, fusion_bbox=cfg.fusion_bbox, c6=cfg.c6, ds_deep=cfg.ds_deep).to(device)
 
     flops_str, params_str, n_params = measure_complexity(model, device, cfg.img_size)
     print(f"  Params: {params_str} ({n_params:,})   FLOPs: {flops_str}")
@@ -355,7 +391,7 @@ def train_one_run(seed: int, use_attention: bool, cfg: Config, device: torch.dev
     test_dir  = os.path.join(cfg.dataset_root, "test")
 
     tr_dl = DataLoader(
-        DroneDetectDataset(train_dir, augment=True, img_size=cfg.img_size, cache_images=True),
+        DroneDetectDataset(train_dir, augment=True, img_size=cfg.img_size, cache_images=True, aug_v2=cfg.aug_v2),
         batch_size=cfg.batch_size, shuffle=True, num_workers=cfg.num_workers,
         pin_memory=(device.type == "cuda"), persistent_workers=(cfg.num_workers > 0),
         worker_init_fn=functools.partial(_worker_seed_fn, base_seed=seed),
@@ -369,7 +405,12 @@ def train_one_run(seed: int, use_attention: bool, cfg: Config, device: torch.dev
     bce = nn.BCEWithLogitsLoss()
     if cfg.freeze_kernels:
         model.block1.freeze_fixed_kernels()
-    opt = optim.AdamW(model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay)
+    teacher, adapters = None, None
+    if cfg.kd_w > 0:
+        teacher = FeatureTeacher(42, device)          # same fixed teacher for every student seed
+        adapters = nn.ModuleList([nn.Conv2d(64, 64, 1), nn.Conv2d(128, 128, 1), nn.Conv2d(model.c6, 256, 1)]).to(device)
+    params = list(model.parameters()) + (list(adapters.parameters()) if adapters is not None else [])
+    opt = optim.AdamW(params, lr=cfg.lr, weight_decay=cfg.weight_decay)
     sched = WarmupCosineScheduler(opt, cfg.warmup_epochs, cfg.epochs)
     stopper = EarlyStopping(cfg.patience, cfg.min_delta)
 
@@ -401,6 +442,8 @@ def train_one_run(seed: int, use_attention: bool, cfg: Config, device: torch.dev
             loss_e2 = bce(e2_out, lbls)
 
             loss = loss_cls + cfg.lambda_bbox * loss_bbox + cfg.lambda_e1 * loss_e1 + cfg.lambda_e2 * loss_e2
+            if teacher is not None:
+                loss = loss + cfg.kd_w * _kd_loss([model._p3, model._p4, model._p5], adapters, teacher(imgs))
             loss.backward()
             nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0)
             opt.step()
@@ -535,8 +578,7 @@ class _MainWrapper(nn.Module):
     def forward(self, x):
         feat_map = self.m._gate2_to_feature_map(x)
         pooled = self.m._pool_and_dropout(feat_map)
-        bbox_input = feat_map if self.m.use_spatial_bbox else pooled
-        return torch.cat([self.m.cls_head(pooled), self.m.bbox_head(bbox_input)], dim=1)
+        return torch.cat([self.m.cls_head(pooled), self.m.bbox_head(self.m._bbox_input(feat_map, pooled))], dim=1)
 
 
 def measure_block_flops(model: nn.Module, device: torch.device, img_size: int = 128) -> Tuple[float, float, float]:
@@ -637,6 +679,11 @@ def main():
     parser.add_argument("--legacy_gap_bbox", action="store_true",
                         help="reproduce the pre-ablation architecture (bbox head on the "
                              "GAP-pooled vector) instead of the default spatial bbox head")
+    parser.add_argument("--fusion_bbox", action="store_true", help="pilot: multi-scale (16x16 + 4x4) box head")
+    parser.add_argument("--c6", type=int, default=256, help="pilot: Block-6 output width")
+    parser.add_argument("--ds_deep", action="store_true", help="pilot: depthwise-separable Blocks 4-6")
+    parser.add_argument("--kd_w", type=float, default=0.0, help="pilot: feature-distillation weight (0 = off)")
+    parser.add_argument("--aug_v2", action="store_true", help="pilot: label-consistent geometric augmentation")
     args = parser.parse_args()
 
     cfg = Config()
@@ -648,6 +695,11 @@ def main():
     cfg.use_spatial_bbox = not args.legacy_gap_bbox
     cfg.physical_init = not args.random_init
     cfg.freeze_kernels = args.freeze_kernels
+    cfg.fusion_bbox = args.fusion_bbox
+    cfg.c6 = args.c6
+    cfg.kd_w = args.kd_w
+    cfg.aug_v2 = args.aug_v2
+    cfg.ds_deep = args.ds_deep
 
     if args.quick:
         cfg.epochs, cfg.patience, cfg.seeds = 2, 1, [42]
@@ -663,7 +715,7 @@ def main():
     if False in configs_to_run:
         final_tag = "final" + _arch_suffix(cfg)
         best_final = EMADet(use_attention=False, use_spatial_bbox=cfg.use_spatial_bbox,
-                            physical_init=cfg.physical_init).to(torch.device(cfg.device))
+                            physical_init=cfg.physical_init, fusion_bbox=cfg.fusion_bbox, c6=cfg.c6, ds_deep=cfg.ds_deep).to(torch.device(cfg.device))
         best_final.load_state_dict(torch.load(results[final_tag]["best_ckpt"], map_location=cfg.device))
         ee_rows = analyze_early_exit_table(best_final, cfg)
         print_early_exit_table(ee_rows)

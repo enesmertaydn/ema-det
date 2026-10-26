@@ -37,7 +37,8 @@ class DroneDetectDataset(Dataset):
     """
 
     def __init__(self, root_dir: str, augment: bool = False, img_size: int = IMG_SIZE,
-                 cache_images: bool = True):
+                 cache_images: bool = True, aug_v2: bool = False):
+        self.aug_v2 = aug_v2
         self.img_paths = sorted(
             glob.glob(os.path.join(root_dir, "images", "*.jpg")) +
             glob.glob(os.path.join(root_dir, "images", "*.png")) +
@@ -97,6 +98,41 @@ class DroneDetectDataset(Dataset):
         except ValueError:
             return 0.0, None
 
+    def _augment_v2_tail(self, img: np.ndarray, bbox):
+        """Label-consistent geometry: random scale/rotation/translation whose effect on the box is computed
+        from its four corners (the default branch rotates only the box centre and keeps w,h), and
+        occlusion that never touches the target box."""
+        h, w = img.shape
+        if random.random() < 0.6:
+            ang, sc = random.uniform(-15, 15), random.uniform(0.8, 1.2)
+            M = cv2.getRotationMatrix2D((w / 2, h / 2), ang, sc)
+            M[0, 2] += random.uniform(-0.08, 0.08) * w
+            M[1, 2] += random.uniform(-0.08, 0.08) * h
+            new_img = cv2.warpAffine(img, M, (w, h), borderMode=cv2.BORDER_REFLECT)
+            if bbox is None:
+                img = new_img
+            else:
+                cx, cy, bw, bh = bbox[0] * w, bbox[1] * h, bbox[2] * w, bbox[3] * h
+                pts = np.array([[cx - bw / 2, cy - bh / 2, 1], [cx + bw / 2, cy - bh / 2, 1],
+                                [cx - bw / 2, cy + bh / 2, 1], [cx + bw / 2, cy + bh / 2, 1]], dtype=np.float32)
+                q = pts @ M.T
+                x1, y1, x2, y2 = q[:, 0].min(), q[:, 1].min(), q[:, 0].max(), q[:, 1].max()
+                full = (x2 - x1) * (y2 - y1)
+                x1, y1, x2, y2 = max(x1, 0), max(y1, 0), min(x2, w), min(y2, h)
+                if x2 - x1 > 2 and y2 - y1 > 2 and (x2 - x1) * (y2 - y1) >= 0.7 * full:   # keep only if mostly visible
+                    img = new_img
+                    bbox = np.array([(x1 + x2) / 2 / w, (y1 + y2) / 2 / h, (x2 - x1) / w, (y2 - y1) / h], dtype=np.float32)
+        if random.random() < 0.3:      # occlusion that avoids the target
+            for _ in range(random.randint(1, 2)):
+                cx_, cy_, sz_ = random.randint(0, w), random.randint(0, h), random.randint(8, 20)
+                if bbox is not None:
+                    bx1, by1 = (bbox[0] - bbox[2] / 2) * w, (bbox[1] - bbox[3] / 2) * h
+                    bx2, by2 = (bbox[0] + bbox[2] / 2) * w, (bbox[1] + bbox[3] / 2) * h
+                    if cx_ + sz_ > bx1 and cx_ - sz_ < bx2 and cy_ + sz_ > by1 and cy_ - sz_ < by2:
+                        continue
+                img[max(0, cy_ - sz_):cy_ + sz_, max(0, cx_ - sz_):cx_ + sz_] = 0
+        return img, bbox
+
     def _augment(self, img: np.ndarray, bbox):
         h, w = img.shape
 
@@ -127,6 +163,9 @@ class DroneDetectDataset(Dataset):
                 img.astype(np.float32) + np.random.randn(h, w) * random.uniform(5, 20),
                 0, 255
             ).astype(np.uint8)
+
+        if self.aug_v2:
+            return self._augment_v2_tail(img, bbox)
 
         if random.random() < 0.4:  # small-angle rotation (bbox center rotated too)
             ang = random.uniform(-15, 15)

@@ -172,6 +172,19 @@ def conv_block(in_ch: int, out_ch: int) -> nn.Sequential:
     )
 
 
+def _dsconv(in_ch: int, out_ch: int, dilation: int = 1) -> nn.Sequential:
+    """Depthwise 3x3 + pointwise 1x1, each followed by BN + LeakyReLU (MobileNet-style)."""
+    return nn.Sequential(
+        nn.Conv2d(in_ch, in_ch, 3, 1, padding=dilation, dilation=dilation, groups=in_ch, bias=False),
+        nn.BatchNorm2d(in_ch), nn.LeakyReLU(0.1),
+        nn.Conv2d(in_ch, out_ch, 1, bias=False), nn.BatchNorm2d(out_ch), nn.LeakyReLU(0.1),
+    )
+
+
+def conv_block_ds(in_ch: int, out_ch: int) -> nn.Sequential:
+    return nn.Sequential(_dsconv(in_ch, out_ch), _dsconv(out_ch, out_ch))
+
+
 # ==============================================================================
 # Structured output
 # ==============================================================================
@@ -216,8 +229,11 @@ class EMADet(nn.Module):
     """
 
     def __init__(self, use_attention: bool = False, dropout: float = 0.4,
-                 use_spatial_bbox: bool = True, physical_init: bool = True):
+                 use_spatial_bbox: bool = True, physical_init: bool = True,
+                 fusion_bbox: bool = False, c6: int = 256, ds_deep: bool = False):
         super().__init__()
+        self.fusion_bbox = fusion_bbox
+        self.c6 = c6
         self.use_attention = use_attention
         self.use_spatial_bbox = use_spatial_bbox
 
@@ -236,20 +252,24 @@ class EMADet(nn.Module):
         self.pool3  = nn.MaxPool2d(2)
 
         # Block 4 — 64 -> 128, 16 -> 8
-        self.block4 = conv_block(64, 128)
+        self.block4 = conv_block_ds(64, 128) if ds_deep else conv_block(64, 128)
         self.attn4  = CBAM(128) if use_attention else Identity2()
         self.pool4  = nn.MaxPool2d(2)
         self.gate2  = EarlyExitGate(128)
 
         # Block 5 — multi-scale (dilation 1 & 2) fusion, 8 -> 4
-        self.block5a = nn.Sequential(
-            nn.Conv2d(128, 128, 3, 1, padding=1, dilation=1),
-            nn.BatchNorm2d(128), nn.LeakyReLU(0.1),
-        )
-        self.block5b = nn.Sequential(
-            nn.Conv2d(128, 128, 3, 1, padding=2, dilation=2),
-            nn.BatchNorm2d(128), nn.LeakyReLU(0.1),
-        )
+        if ds_deep:
+            self.block5a = _dsconv(128, 128, 1)
+            self.block5b = _dsconv(128, 128, 2)
+        else:
+            self.block5a = nn.Sequential(
+                nn.Conv2d(128, 128, 3, 1, padding=1, dilation=1),
+                nn.BatchNorm2d(128), nn.LeakyReLU(0.1),
+            )
+            self.block5b = nn.Sequential(
+                nn.Conv2d(128, 128, 3, 1, padding=2, dilation=2),
+                nn.BatchNorm2d(128), nn.LeakyReLU(0.1),
+            )
         self.fusion = nn.Sequential(
             nn.Conv2d(256, 128, 1, bias=False), nn.BatchNorm2d(128), nn.LeakyReLU(0.1),
         )
@@ -257,14 +277,24 @@ class EMADet(nn.Module):
         self.pool5 = nn.MaxPool2d(2)
 
         # Block 6 — 128 -> 256, spatial stays 4x4
-        self.block6 = conv_block(128, 256)
-        self.attn6  = CBAM(256) if use_attention else Identity2()
+        self.block6 = conv_block_ds(128, c6) if ds_deep else conv_block(128, c6)
+        self.attn6  = CBAM(c6) if use_attention else Identity2()
 
         # Verification head
         self.gap     = nn.AdaptiveAvgPool2d(1)
         self.dropout = nn.Dropout(dropout)
-        self.cls_head  = nn.Linear(256, 1)
-        if use_spatial_bbox:
+        self.cls_head  = nn.Linear(c6, 1)
+        if fusion_bbox:
+            # Multi-scale box head: the 32x32 Block-3 map (finer localization) and the
+            # 4x4 Block-6 map are each reduced by a 1x1 conv, concatenated and regressed
+            # by a small MLP. Classification path is unchanged.
+            self.loc3 = nn.Sequential(nn.Conv2d(64, 16, 1, bias=False), nn.BatchNorm2d(16),
+                                      nn.LeakyReLU(0.1), nn.AvgPool2d(4))      # 16x8x8 (from 32x32)
+            self.loc6 = nn.Sequential(nn.Conv2d(c6, 32, 1, bias=False), nn.BatchNorm2d(32),
+                                      nn.LeakyReLU(0.1))                       # 32x4x4
+            self.bbox_head = nn.Sequential(nn.Linear(16 * 8 * 8 + 32 * 4 * 4, 128),
+                                           nn.LeakyReLU(0.1), nn.Linear(128, 4))
+        elif use_spatial_bbox:
             # Block 6's output is 256x4x4. GAP would collapse all spatial
             # layout before a pooled bbox_head ever saw it — a direct,
             # architecturally-obvious reason the legacy (use_spatial_bbox=
@@ -275,10 +305,10 @@ class EMADet(nn.Module):
             # can use positional information, while cls_head stays on the
             # pooled path unchanged (that's the head whose stability this
             # project already validated across N=5 seeds).
-            self.bbox_head = nn.Sequential(nn.Flatten(), nn.Linear(256 * 4 * 4, 4))
+            self.bbox_head = nn.Sequential(nn.Flatten(), nn.Linear(c6 * 4 * 4, 4))
         else:
             # Legacy architecture (pre-ablation) — kept for reproducibility.
-            self.bbox_head = nn.Linear(256, 4)
+            self.bbox_head = nn.Linear(c6, 4)
 
     # -- shared feature path, reused by forward() and by the FPS/FLOPs tooling --
     def _stem_to_gate1(self, x: torch.Tensor) -> torch.Tensor:
@@ -287,8 +317,12 @@ class EMADet(nn.Module):
         return f
 
     def _gate1_to_gate2(self, f: torch.Tensor) -> torch.Tensor:
-        f = self.pool3(self.attn3(self.block3(f)))
+        f3 = self.attn3(self.block3(f))
+        self._f3 = f3
+        f = self.pool3(f3)
+        self._p3 = f
         f = self.pool4(self.attn4(self.block4(f)))
+        self._p4 = f
         return f
 
     def _gate2_to_feature_map(self, f: torch.Tensor) -> torch.Tensor:
@@ -298,10 +332,16 @@ class EMADet(nn.Module):
         f = self.attn5(self.fusion(torch.cat([self.block5a(f), self.block5b(f)], dim=1)))
         f = self.pool5(f)
         f = self.attn6(self.block6(f))
+        self._p5 = f
         return f
 
     def _pool_and_dropout(self, feat_map: torch.Tensor) -> torch.Tensor:
         return self.dropout(self.gap(feat_map).view(feat_map.size(0), -1))
+
+    def _bbox_input(self, feat_map: torch.Tensor, pooled: torch.Tensor) -> torch.Tensor:
+        if self.fusion_bbox:
+            return torch.cat([self.loc3(self._f3).flatten(1), self.loc6(feat_map).flatten(1)], dim=1)
+        return feat_map if self.use_spatial_bbox else pooled
 
     def _gate2_to_head(self, f: torch.Tensor) -> torch.Tensor:
         """Kept for backward compatibility (e.g. train.py's thop FLOPs
@@ -338,8 +378,7 @@ class EMADet(nn.Module):
         feat_map = self._gate2_to_feature_map(f)
         pooled = self._pool_and_dropout(feat_map)
         cls_logit = self.cls_head(pooled).squeeze(1)
-        bbox_input = feat_map if self.use_spatial_bbox else pooled
-        bbox = torch.sigmoid(self.bbox_head(bbox_input))
+        bbox = torch.sigmoid(self.bbox_head(self._bbox_input(feat_map, pooled)))
         return EMADetOutput(cls_logit, bbox, gate1_logit, gate2_logit, "main")
 
 
