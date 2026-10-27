@@ -79,6 +79,7 @@ class Config:
     c6: int = 256                   # Block-6 width (pilot: 128 = narrow variant, tag "_c6<w>")
     ds_deep: bool = False           # depthwise-separable Blocks 4-6 (pilot, tag "_dsdeep")
     aug_v2: bool = False            # label-consistent scale/rotation/translation + target-safe occlusion (tag "_augv2")
+    center_grid: int = 16           # 32: fine-grid centre head for small targets (tag "_centerhead32")
     center_head: bool = False       # centre-based localization head (tag "_centerhead")
     kd_w: float = 0.0               # >0: feature distillation from a COCO YOLOv8n teacher (train only, tag "_kd")
     fusion_bbox: bool = False       # True: multi-scale box head (pilot, tag "_fusionbbox")
@@ -136,7 +137,7 @@ def _kd_loss(student_feats, adapters, teacher_feats):
 
 def _arch_suffix(cfg) -> str:
     """Tag suffix distinguishing architecture variants (legacy head, random init)."""
-    return ("_legacygapbbox" if not cfg.use_spatial_bbox else "") + ("_randinit" if not cfg.physical_init else "") + ("_frozen" if cfg.freeze_kernels else "") + ("_fusionbbox" if cfg.fusion_bbox else "") + ("_c6%d" % cfg.c6 if cfg.c6 != 256 else "") + ("_dsdeep" if cfg.ds_deep else "") + ("_kd" if cfg.kd_w > 0 else "") + ("_augv2" if cfg.aug_v2 else "") + ("_centerhead" if cfg.center_head else "")
+    return ("_legacygapbbox" if not cfg.use_spatial_bbox else "") + ("_randinit" if not cfg.physical_init else "") + ("_frozen" if cfg.freeze_kernels else "") + ("_fusionbbox" if cfg.fusion_bbox else "") + ("_c6%d" % cfg.c6 if cfg.c6 != 256 else "") + ("_dsdeep" if cfg.ds_deep else "") + ("_kd" if cfg.kd_w > 0 else "") + ("_augv2" if cfg.aug_v2 else "") + (("_centerhead" + ("32" if cfg.center_grid == 32 else "")) if cfg.center_head else "")
 
 
 # ==============================================================================
@@ -383,7 +384,7 @@ def train_one_run(seed: int, use_attention: bool, cfg: Config, device: torch.dev
 
     set_seed(seed)
     model = EMADet(use_attention=use_attention, use_spatial_bbox=cfg.use_spatial_bbox,
-                   physical_init=cfg.physical_init, fusion_bbox=cfg.fusion_bbox, c6=cfg.c6, ds_deep=cfg.ds_deep, center_head=cfg.center_head).to(device)
+                   physical_init=cfg.physical_init, fusion_bbox=cfg.fusion_bbox, c6=cfg.c6, ds_deep=cfg.ds_deep, center_head=cfg.center_head, center_grid=cfg.center_grid).to(device)
 
     flops_str, params_str, n_params = measure_complexity(model, device, cfg.img_size)
     print(f"  Params: {params_str} ({n_params:,})   FLOPs: {flops_str}")
@@ -585,7 +586,7 @@ class _MainWrapper(nn.Module):
         feat_map = self.m._gate2_to_feature_map(x)
         pooled = self.m._pool_and_dropout(feat_map)
         if self.m.center_head:
-            hm, reg = self.m.ctr(self.m._p3, self.m._p4, feat_map)
+            hm, reg = self.m.ctr(self.m._p3, self.m._p4, feat_map, getattr(self.m, '_p2', None))
             return torch.cat([self.m.cls_head(pooled), hm.flatten(1), reg.flatten(1)], dim=1)
         return torch.cat([self.m.cls_head(pooled), self.m.bbox_head(self.m._bbox_input(feat_map, pooled))], dim=1)
 
@@ -691,6 +692,7 @@ def main():
     parser.add_argument("--fusion_bbox", action="store_true", help="pilot: multi-scale (16x16 + 4x4) box head")
     parser.add_argument("--c6", type=int, default=256, help="pilot: Block-6 output width")
     parser.add_argument("--ds_deep", action="store_true", help="pilot: depthwise-separable Blocks 4-6")
+    parser.add_argument("--center_grid", type=int, default=16, choices=[16, 32], help="grid of the centre head (32: finer, for small targets)")
     parser.add_argument("--center_head", action="store_true", help="pilot: centre-based localization head (heat map + offset + size)")
     parser.add_argument("--kd_w", type=float, default=0.0, help="pilot: feature-distillation weight (0 = off)")
     parser.add_argument("--aug_v2", action="store_true", help="pilot: label-consistent geometric augmentation")
@@ -709,6 +711,7 @@ def main():
     cfg.c6 = args.c6
     cfg.kd_w = args.kd_w
     cfg.center_head = args.center_head
+    cfg.center_grid = args.center_grid
     cfg.aug_v2 = args.aug_v2
     cfg.ds_deep = args.ds_deep
 
@@ -726,7 +729,7 @@ def main():
     if False in configs_to_run:
         final_tag = "final" + _arch_suffix(cfg)
         best_final = EMADet(use_attention=False, use_spatial_bbox=cfg.use_spatial_bbox,
-                            physical_init=cfg.physical_init, fusion_bbox=cfg.fusion_bbox, c6=cfg.c6, ds_deep=cfg.ds_deep, center_head=cfg.center_head).to(torch.device(cfg.device))
+                            physical_init=cfg.physical_init, fusion_bbox=cfg.fusion_bbox, c6=cfg.c6, ds_deep=cfg.ds_deep, center_head=cfg.center_head, center_grid=cfg.center_grid).to(torch.device(cfg.device))
         best_final.load_state_dict(torch.load(results[final_tag]["best_ckpt"], map_location=cfg.device))
         ee_rows = analyze_early_exit_table(best_final, cfg)
         print_early_exit_table(ee_rows)

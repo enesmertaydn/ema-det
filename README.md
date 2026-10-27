@@ -113,6 +113,10 @@ box recall (IoU>=0.5) 71.7 -> 77.6% (p=0.003); classification recall and AUROC u
 (mAP@0.5:0.95 of 44.8, 44.2, 44.7, 36.4, 32.9%). YOLOv8n from scratch reaches 79.5% / 49.6%, COCO-pretrained 84.0% / 54.1%, so the gap narrows but is not closed.
 The head was designed after `src/map_decomposition.py` (run on the test set) showed that the loss comes from box quality and from scores that ignore it;
 the variant was selected on the validation set, but many variants were tried (selection bias), and the test set was seen during that analysis.
+Independent checks (not used in the design): EO validation split, mAP@0.5 +11.2 points (p=0.001, `src/eo_val_check.py`); Anti-UAV410 thermal data, five seeds trained
+from scratch (`scratch_runner3.sh`, `src/thermal_variant_eval.py`): mAP@0.5:0.95 51.82±1.62 -> 56.59±0.90% (p=0.003), mAP@0.75 53.4 -> 61.8% (p=0.006),
+mean IoU 79.7 -> 80.7% (p=0.03), mAP@0.5 89.5 -> 90.7% (p=0.14, near its ceiling). A 32x32 fine-grid head (`--center_grid 32`) gave no further gain on thermal seed 42.
+`src/domain_gap_analysis.py` explains the different gains: thermal boxes are already accurate (91% of positives have IoU>=0.5, EO 73%), so mAP@0.5 is near its ceiling there.
 
 ### Initialization ablation: Laplacian/Sobel vs. random first layer (N=5)
 

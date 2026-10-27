@@ -213,20 +213,29 @@ class CenterHead(nn.Module):
     Block 4 (128x8x8) and Block 6 (c6x4x4) maps by 1x1 reductions, nearest up-sampling and one 3x3 convolution.
     Outputs a centre heat map and, per cell, an offset (2, unbounded) and a size (2, sigmoid). Decoding takes the peak cell."""
 
-    def __init__(self, c6: int, mid: int = 64):
+    def __init__(self, c6: int, mid: int = 64, grid: int = 16):
         super().__init__()
+        self.grid = grid
+        if grid == 32:
+            mid = 32                                        # finer grid (stride 4), narrower fusion to bound the FLOPs
 
         def red(ci):
             return nn.Sequential(nn.Conv2d(ci, mid, 1, bias=False), nn.BatchNorm2d(mid), nn.LeakyReLU(0.1))
         self.r3, self.r4, self.r5 = red(64), red(128), red(c6)
-        self.fuse = nn.Sequential(nn.Conv2d(3 * mid, mid, 3, padding=1, bias=False), nn.BatchNorm2d(mid), nn.LeakyReLU(0.1))
+        self.r2 = red(32) if grid == 32 else None            # Block-2 output (32x32), only for the fine grid
+        self.fuse = nn.Sequential(nn.Conv2d((4 if grid == 32 else 3) * mid, mid, 3, padding=1, bias=False), nn.BatchNorm2d(mid), nn.LeakyReLU(0.1))
         self.hm = nn.Conv2d(mid, 1, 1)
         self.reg = nn.Conv2d(mid, 4, 1)
         nn.init.constant_(self.hm.bias, -2.19)         # prior probability 0.1, as in CenterNet
 
-    def forward(self, p3, p4, p5):
-        f = torch.cat([self.r3(p3), F.interpolate(self.r4(p4), scale_factor=2, mode="nearest"),
-                       F.interpolate(self.r5(p5), scale_factor=4, mode="nearest")], dim=1)
+    def forward(self, p3, p4, p5, p2=None):
+        if self.grid == 32:
+            f = torch.cat([self.r2(p2), F.interpolate(self.r3(p3), scale_factor=2, mode="nearest"),
+                           F.interpolate(self.r4(p4), scale_factor=4, mode="nearest"),
+                           F.interpolate(self.r5(p5), scale_factor=8, mode="nearest")], dim=1)
+        else:
+            f = torch.cat([self.r3(p3), F.interpolate(self.r4(p4), scale_factor=2, mode="nearest"),
+                           F.interpolate(self.r5(p5), scale_factor=4, mode="nearest")], dim=1)
         f = self.fuse(f)
         return self.hm(f), self.reg(f)
 
@@ -269,7 +278,7 @@ class EMADet(nn.Module):
 
     def __init__(self, use_attention: bool = False, dropout: float = 0.4,
                  use_spatial_bbox: bool = True, physical_init: bool = True,
-                 fusion_bbox: bool = False, c6: int = 256, ds_deep: bool = False, center_head: bool = False):
+                 fusion_bbox: bool = False, c6: int = 256, ds_deep: bool = False, center_head: bool = False, center_grid: int = 16):
         super().__init__()
         self.fusion_bbox = fusion_bbox
         self.center_head = center_head
@@ -325,7 +334,7 @@ class EMADet(nn.Module):
         self.dropout = nn.Dropout(dropout)
         self.cls_head  = nn.Linear(c6, 1)
         if center_head:
-            self.ctr = CenterHead(c6)
+            self.ctr = CenterHead(c6, grid=center_grid)
             self.bbox_head = None
         elif fusion_bbox:
             # Multi-scale box head: the 32x32 Block-3 map (finer localization) and the
@@ -357,6 +366,7 @@ class EMADet(nn.Module):
     def _stem_to_gate1(self, x: torch.Tensor) -> torch.Tensor:
         f = self.pool1(self.block1(x))
         f = self.pool2(self.block2(f))
+        self._p2 = f
         return f
 
     def _gate1_to_gate2(self, f: torch.Tensor) -> torch.Tensor:
@@ -422,7 +432,7 @@ class EMADet(nn.Module):
         pooled = self._pool_and_dropout(feat_map)
         cls_logit = self.cls_head(pooled).squeeze(1)
         if self.center_head:
-            hm, reg = self.ctr(self._p3, self._p4, feat_map)
+            hm, reg = self.ctr(self._p3, self._p4, feat_map, getattr(self, '_p2', None))
             bbox, peak = CenterHead.decode(hm, reg)
             det_score = torch.sigmoid(cls_logit) * peak
             return EMADetOutput(cls_logit, bbox, gate1_logit, gate2_logit, "main", det_score, {"hm": hm, "reg": reg})

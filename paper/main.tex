@@ -193,8 +193,8 @@ initialization and finds no measurable gain. Figure~\ref{fig:featmaps} shows the
 resulting Block~1 responses: the Laplacian and Sobel channels give clean edge
 maps of a UAV and of a bird, and the trained kernels stay close to their priors
 (cosine similarity $0.9998$ on average over the twelve fixed channels and five
-seeds, minimum $0.9968$). An untrained random layer also responds to edges (last
-column), so the figure illustrates the prior and does not prove a benefit.
+seeds, minimum $0.9968$). A random layer also responds to edges (last column), so
+the figure illustrates the prior without proving a benefit.
 
 \subsection{Architecture}\label{sec:arch}
 Figure~\ref{fig:arch} shows the network. Block~1 (Section~\ref{sec:init})
@@ -417,11 +417,15 @@ better in a single-seed pilot, did not hold). The centre-based head changes
 localization only: mAP@0.5 rises from $58.03$ to $73.58\%$ ($p=0.0001$),
 mAP@0.5:0.95 from $28.04$ to $40.60\%$ ($p=0.005$) and box recall from $71.7$ to
 $77.6\%$ ($p=0.003$), with recall and AUROC unchanged ($p=0.53$, $0.40$); strict-IoU
-metrics vary more across seeds (mAP@0.5:0.95: 44.8, 44.2, 44.7, 36.4, 32.9\%). We
-keep the regression head and standard convolutions as default, since this
+metrics vary more across seeds (mAP@0.5:0.95: 44.8, 44.2, 44.7, 36.4, 32.9\%). The
+head was designed after an error analysis on the EO test split, so that gain may be slightly
+optimistic. Two sets outside that analysis agree: the EO validation split (mAP@0.5 $+11.2$
+points, $p=0.001$) and the Anti-UAV410 thermal data (five seeds from scratch: mAP@0.5:0.95
+$51.82\pm1.62\to56.59\pm0.90\%$, $p=0.003$; mAP@0.75 $53.4\to61.8\%$, $p=0.006$; mAP@0.5 $89.5\to90.7\%$,
+$p=0.14$, near its ceiling). We keep the regression head and standard convolutions as default, since this
 paper's early-exit, cross-sensor and CBAM results use them and for the hardware
 reasons in Section~\ref{sec:intro}; with depthwise blocks Gate~2 sits after 95\% of
-the compute instead of 83\%, so early exit saves much less.
+the compute, so early exit saves little.
 
 \looseness=-1 With the spatial bbox head, a paired $t$-test over the five matched seeds
 finds no significant difference between configurations in mAP@0.5, mAP@0.75
@@ -467,8 +471,7 @@ rate at a given false-alarm rate bounds system recall, and mAP does not predict 
 x0.5~\cite{ma2018shufflenet}, trained with the same head and protocol, are
 closer. EMA-Det's AUROC exceeds theirs ($0.980\pm0.003$, $0.975\pm0.003$), and
 at a $5\%$ false-positive rate it accepts $96.3\pm1.0\%$ of the targets against
-$90.4\pm2.1\%$ and $88.2\pm2.9\%$ ($p<0.01$); their mAP is within the seed spread
-of EMA-Det's. The price is computation: 423.1M FLOPs, 11 and 17 times those of
+$90.4\pm2.1\%$ and $88.2\pm2.9\%$ ($p<0.01$); their mAP is similar. The price is computation: 423.1M FLOPs, 11 and 17 times those of
 MobileNetV3-Small (38.0M) and ShuffleNetV2 (24.9M), which also have fewer
 parameters. The narrowed (0.93M parameters, the size of MobileNetV3-Small) and depthwise
 (0.30M) variants of Table~\ref{tab:baselines} keep AUROCs of $0.990\pm0.001$ and
@@ -487,7 +490,7 @@ at $\tau{=}0.92$ against 337.8 at $0.95$), which is within timing noise.
 
 \begin{table*}[t]
 \centering
-\caption{Early-exit threshold $\tau$ vs.\ recall and compute, EMA-Det (final), test set; mAP and recall are those of the best-seed checkpoint used for all columns (five-seed means in the text). Full network: no gates. FPS: batch=1, RTX~4060 laptop GPU (proxy, not target FPGA).}\label{tab:earlyexit}
+\caption{Early-exit threshold $\tau$ vs.\ recall and compute, EMA-Det (final), test set; best-seed checkpoint (five-seed means in the text). Full network: no gates. FPS: batch=1, RTX~4060 laptop GPU (proxy, not target FPGA).}\label{tab:earlyexit}
 \tablebodyfont
 \adjustbox{max width=\linewidth}{%
 \begin{tabular}{cccccc}
@@ -576,10 +579,8 @@ head, no CBAM) was evaluated on the thermal val/test splits without
 fine-tuning. Precision stays high (95.31\% val, 95.53\% test), but recall
 falls from the EO in-domain $96.08\pm0.47\%$ (Table~\ref{tab:cbam}) to
 86.29\% (val) and 80.12\% (test), and mAP@0.5 from 58.03\% to 52.05\% and
-39.38\%. The learned features keep
-their discriminative signal across modalities, but the difference between
-EO and thermal silhouettes accounts for a sizeable share of the missed
-detections.
+39.38\%. The features keep their discriminative signal, but EO and
+thermal silhouettes differ enough to cause many misses.
 
 \looseness=-1 \textbf{Thermal-from-scratch reference.} To bound the zero-shot result,
 EMA-Det (final) was trained from scratch on the thermal train/val split under
@@ -621,9 +622,7 @@ centre-based box head narrows without closing. Early
 exit saves 12.5--21.2\% of FLOPs for 0.4--1.0 recall points, and the
 cross-sensor evaluation quantifies a real but not catastrophic EO$\to$thermal
 gap. A synthesized first block and a quantified roadmap scope the work that
-remains for a full FPGA mapping. We release the dataset-construction and
-evaluation tools so that similar datasets can be built reproducibly from
-web-scraped imagery.
+remains for a full FPGA mapping.
 
 \backmatter
 
