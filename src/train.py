@@ -79,6 +79,7 @@ class Config:
     c6: int = 256                   # Block-6 width (pilot: 128 = narrow variant, tag "_c6<w>")
     ds_deep: bool = False           # depthwise-separable Blocks 4-6 (pilot, tag "_dsdeep")
     aug_v2: bool = False            # label-consistent scale/rotation/translation + target-safe occlusion (tag "_augv2")
+    scale_aug: bool = False         # zoom-out scale augmentation (drone/patch ratio down to 0.35x, tag "_scaleaug")
     select: str = "map50"            # checkpoint / early-stopping metric: map50 (default) or fitness = 0.1 mAP@0.5 + 0.9 mAP@0.5:0.95 (Ultralytics rule, tag "_fit")
     ds_all: bool = False            # depthwise-separable Blocks 2-6 (tag "_dsall")
     center_grid: int = 16           # 32: fine-grid centre head for small targets (tag "_centerhead32")
@@ -139,7 +140,7 @@ def _kd_loss(student_feats, adapters, teacher_feats):
 
 def _arch_suffix(cfg) -> str:
     """Tag suffix distinguishing architecture variants (legacy head, random init)."""
-    return ("_legacygapbbox" if not cfg.use_spatial_bbox else "") + ("_randinit" if not cfg.physical_init else "") + ("_frozen" if cfg.freeze_kernels else "") + ("_fusionbbox" if cfg.fusion_bbox else "") + ("_c6%d" % cfg.c6 if cfg.c6 != 256 else "") + ("_dsdeep" if cfg.ds_deep else "") + ("_kd" if cfg.kd_w > 0 else "") + ("_augv2" if cfg.aug_v2 else "") + (("_centerhead" + ("32" if cfg.center_grid == 32 else "")) if cfg.center_head else "") + ("_dsall" if cfg.ds_all else "") + ("_fit" if cfg.select == "fitness" else "")
+    return ("_legacygapbbox" if not cfg.use_spatial_bbox else "") + ("_randinit" if not cfg.physical_init else "") + ("_frozen" if cfg.freeze_kernels else "") + ("_fusionbbox" if cfg.fusion_bbox else "") + ("_c6%d" % cfg.c6 if cfg.c6 != 256 else "") + ("_dsdeep" if cfg.ds_deep else "") + ("_kd" if cfg.kd_w > 0 else "") + ("_augv2" if cfg.aug_v2 else "") + (("_centerhead" + ("32" if cfg.center_grid == 32 else "")) if cfg.center_head else "") + ("_dsall" if cfg.ds_all else "") + ("_scaleaug" if cfg.scale_aug else "") + ("_fit" if cfg.select == "fitness" else "")
 
 
 # ==============================================================================
@@ -397,7 +398,7 @@ def train_one_run(seed: int, use_attention: bool, cfg: Config, device: torch.dev
     test_dir  = os.path.join(cfg.dataset_root, "test")
 
     tr_dl = DataLoader(
-        DroneDetectDataset(train_dir, augment=True, img_size=cfg.img_size, cache_images=True, aug_v2=cfg.aug_v2),
+        DroneDetectDataset(train_dir, augment=True, img_size=cfg.img_size, cache_images=True, aug_v2=cfg.aug_v2, scale_aug=cfg.scale_aug),
         batch_size=cfg.batch_size, shuffle=True, num_workers=cfg.num_workers,
         pin_memory=(device.type == "cuda"), persistent_workers=(cfg.num_workers > 0),
         worker_init_fn=functools.partial(_worker_seed_fn, base_seed=seed),
@@ -702,6 +703,7 @@ def main():
     parser.add_argument("--center_head", action="store_true", help="pilot: centre-based localization head (heat map + offset + size)")
     parser.add_argument("--kd_w", type=float, default=0.0, help="pilot: feature-distillation weight (0 = off)")
     parser.add_argument("--aug_v2", action="store_true", help="pilot: label-consistent geometric augmentation")
+    parser.add_argument("--scale_aug", action="store_true", help="zoom-out scale augmentation for small targets (tag _scaleaug)")
     args = parser.parse_args()
 
     cfg = Config()
@@ -721,6 +723,7 @@ def main():
     cfg.select = args.select
     cfg.ds_all = args.ds_all
     cfg.aug_v2 = args.aug_v2
+    cfg.scale_aug = args.scale_aug
     cfg.ds_deep = args.ds_deep
 
     if args.quick:

@@ -353,7 +353,7 @@ coarse dropout.
 
 \begin{table*}[t]
 \centering
-\caption{Localization head, CBAM, initialization and size ablations, identical $N{=}5$-seed/150-epoch protocol. Mean $\pm$ std, test set. Rows above the line use the spatial regression head (parameters of the variants in brackets; regression head: 1.53M); below it, the final centre-based head (1.66M) and two variants.}\label{tab:cbam}
+\caption{Localization head, CBAM, initialization and size ablations, identical $N{=}5$-seed/150-epoch protocol. Mean $\pm$ std, test set. Rows above the line use the spatial regression head (parameters of the variants in brackets; regression head: 1.53M); below it, the final centre-based head (1.66M) and three variants.}\label{tab:cbam}
 \tablebodyfont
 \adjustbox{max width=\linewidth}{%
 \begin{tabular}{lccccccc}
@@ -372,6 +372,7 @@ Multi-scale regression head (1.72M) & $60.10{\pm}2.01$ & $25.42{\pm}2.96$ & $29.
 Centre-based head (final, 1.66M) & $73.58{\pm}1.63$ & $38.25{\pm}9.92$ & $40.60{\pm}4.99$ & $92.97{\pm}1.60$ & $96.46{\pm}0.81$ & $94.66{\pm}0.52$ & $68.56{\pm}2.81$ \\
 Centre head, depthwise Blocks 2--6 (0.36M) & $70.98{\pm}2.40$ & $33.74{\pm}6.07$ & $37.15{\pm}3.13$ & $93.06{\pm}0.78$ & $95.76{\pm}0.99$ & $94.38{\pm}0.66$ & $66.71{\pm}2.00$ \\
 Centre head, fitness selection (1.66M) & $74.97{\pm}1.85$ & $47.25{\pm}2.47$ & $45.74{\pm}2.13$ & $94.73{\pm}0.54$ & $95.44{\pm}0.97$ & $95.08{\pm}0.36$ & $71.65{\pm}1.04$ \\
+Centre head, scale augmentation (1.66M) & $76.79{\pm}1.31$ & $43.47{\pm}3.44$ & $42.61{\pm}1.44$ & $94.03{\pm}1.20$ & $96.46{\pm}0.31$ & $95.22{\pm}0.70$ & $69.56{\pm}0.95$ \\
 \botrule
 \end{tabular}}
 \end{table*}
@@ -403,9 +404,8 @@ YOLOv8n (COCO), score threshold 0.1 & -- & -- & $97.47{\pm}0.66$ & $83.23{\pm}1.
 
 \subsection{CBAM Trade-off and Initialization Ablations}\label{sec:cbam}
 
-\looseness=-1 Table~\ref{tab:cbam} reports the controlled $N{=}5$ comparison. Rows
-above the line use the spatial regression head
-(Section~\ref{sec:spatialbbox}); below the line are the final centre-based head and two variants.
+\looseness=-1 Table~\ref{tab:cbam} reports the controlled $N{=}5$ comparison: the spatial regression head
+(Section~\ref{sec:spatialbbox}) above the line, the final centre-based head and three variants below.
 
 \looseness=-1 \textbf{Localization head.} The centre-based head changes localization only:
 mAP@0.5 rises from $58.03$ to $73.58\%$ ($p=0.0001$), mAP@0.5:0.95 from $28.04$ to
@@ -416,8 +416,8 @@ analysis on the EO test split, which showed that the loss comes from box quality
 from scores that ignore it; the same analysis on the validation split gives the same
 picture, and two sets outside it agree: the EO validation split (mAP@0.5 $+11.2$ points,
 $p=0.001$) and the Anti-UAV410 thermal data (five seeds from scratch: mAP@0.5:0.95
-$51.82\pm1.62\to56.59\pm0.90\%$, $p=0.003$; mAP@0.75 $53.4\to61.8\%$, $p=0.006$; mAP@0.5
-$89.5\to90.7\%$, $p=0.14$, near its ceiling). On an external visible-light set unused in training or selection (DUT Anti-UAV test~\cite{zhao2022antiuav}, $2{,}043+2{,}043$ patches, zero-shot, five seeds), recall is $94.5\pm1.2\%$, recall at $5\%$ FPR $90.4\pm1.6\%$ and AUROC $0.980$. With the training protocol's $128$\,px context window mAP@0.5 is $55.7\pm5.2\%$, because most DUT drones are smaller than the sizes seen in training (about $90\%$ when the drone spans at least $24\%$ of the patch side, $2\%$ below $18\%$); a $32$\,px window (a diagnostic chosen after this analysis) gives $84.0\pm1.8\%$.
+$51.82\pm1.62\to56.59\pm0.90\%$, $p=0.003$; mAP@0.5
+$89.5\to90.7\%$, $p=0.14$, near its ceiling). On an external visible-light set unused in training or selection (DUT Anti-UAV test~\cite{zhao2022antiuav}, $2{,}043+2{,}043$ patches, zero-shot, five seeds), recall is $94.5\pm1.2\%$, recall at $5\%$ FPR $90.4\pm1.6\%$ and AUROC $0.980$. With the training protocol's $128$\,px context window mAP@0.5 is $55.7\pm5.2\%$, because most DUT drones are smaller than the sizes seen in training (about $90\%$ when the drone spans at least $24\%$ of the patch side, $2\%$ below $18\%$); a $32$\,px window (a diagnostic chosen after this analysis) gives $84.0\pm1.8\%$. Zoom-out scale augmentation (Table~\ref{tab:cbam}) lifts the $128$\,px value only to $60.2\pm2.2\%$ ($p{=}0.15$) and stays a variant.
 
 \looseness=-1 With the regression head, a paired $t$-test over the five matched seeds
 finds no significant difference between configurations in mAP@0.5, mAP@0.75
@@ -433,8 +433,7 @@ repeat the regression-head model with a random first layer and with the twelve f
 frozen (same seeds and protocol). The differences are within noise (paired
 $t$-test, random initialization: mAP@0.5 $p=0.98$, recall $p=0.93$; frozen
 kernels: $p=0.44$ and $0.26$). The prior thus brings no measurable gain, and we
-make no performance claim for it. Frozen channels could use shifts and additions
-instead of multipliers; we have not synthesized this.
+make no performance claim for it.
 
 \looseness=-1 \textbf{Size.} With the regression head, depthwise-separable Blocks~4--6 (0.30M parameters, 265.6M FLOPs),
 Block~6 narrowed to 128 channels (0.93M, 404.2M FLOPs) and a multi-scale head

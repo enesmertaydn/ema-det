@@ -37,8 +37,9 @@ class DroneDetectDataset(Dataset):
     """
 
     def __init__(self, root_dir: str, augment: bool = False, img_size: int = IMG_SIZE,
-                 cache_images: bool = True, aug_v2: bool = False):
+                 cache_images: bool = True, aug_v2: bool = False, scale_aug: bool = False):
         self.aug_v2 = aug_v2
+        self.scale_aug = scale_aug
         self.img_paths = sorted(
             glob.glob(os.path.join(root_dir, "images", "*.jpg")) +
             glob.glob(os.path.join(root_dir, "images", "*.png")) +
@@ -188,6 +189,25 @@ class DroneDetectDataset(Dataset):
 
         return img, bbox
 
+    def _zoom_out(self, img: np.ndarray, bbox):
+        """Scale augmentation for small targets: with probability 0.5 shrink the patch content by a log-uniform factor in
+        [0.35, 1.0] about the centre, shift it by up to 15% and fill the border by replication; the box is rescaled and shifted
+        with it. Positives and negatives alike, so the drone/patch size ratio covers sizes well below the 3x-context default."""
+        if random.random() >= 0.5:
+            return img, bbox
+        h, w = img.shape
+        s = math.exp(random.uniform(math.log(0.35), 0.0))
+        tx, ty = random.uniform(-0.15, 0.15) * w, random.uniform(-0.15, 0.15) * h
+        M = np.array([[s, 0, (1 - s) * w / 2 + tx], [0, s, (1 - s) * h / 2 + ty]], dtype=np.float32)
+        out = cv2.warpAffine(img, M, (w, h), borderMode=cv2.BORDER_REPLICATE)
+        if bbox is not None:
+            cx, cy = bbox[0] * w * s + M[0, 2], bbox[1] * h * s + M[1, 2]
+            bw, bh = bbox[2] * w * s, bbox[3] * h * s
+            if cx - bw / 2 < 0 or cy - bh / 2 < 0 or cx + bw / 2 > w or cy + bh / 2 > h:
+                return img, bbox        # target would leave the patch: keep the original
+            bbox = np.array([cx / w, cy / h, bw / w, bh / h], dtype=np.float32)
+        return out, bbox
+
     def __getitem__(self, idx: int):
         label, bbox = self.labels[idx]
 
@@ -198,6 +218,8 @@ class DroneDetectDataset(Dataset):
 
         if self.augment:
             img, bbox = self._augment(img, bbox)
+            if self.scale_aug:
+                img, bbox = self._zoom_out(img, bbox)
 
         img_t   = torch.tensor(img.astype(np.float32) / 255.0).unsqueeze(0)
         label_t = torch.tensor(label, dtype=torch.float32)
