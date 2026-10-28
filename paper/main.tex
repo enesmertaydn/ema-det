@@ -347,8 +347,7 @@ linear warmup, cosine annealing, batch size 16 and gradient clipping (norm
 epochs). All results, including the CBAM ablation, use $N{=}5$ seeds
 $\{42, 7, 123, 2024, 31415\}$ under this same protocol. Augmentation uses
 flips, brightness/contrast jitter, motion blur, noise, small rotations and
-coarse dropout. We leave out Mosaic and MixUp because they destroy the
-shape of small targets.
+coarse dropout.
 
 \section{Results}\label{sec:results}
 
@@ -418,8 +417,7 @@ from scores that ignore it; the same analysis on the validation split gives the 
 picture, and two sets outside it agree: the EO validation split (mAP@0.5 $+11.2$ points,
 $p=0.001$) and the Anti-UAV410 thermal data (five seeds from scratch: mAP@0.5:0.95
 $51.82\pm1.62\to56.59\pm0.90\%$, $p=0.003$; mAP@0.75 $53.4\to61.8\%$, $p=0.006$; mAP@0.5
-$89.5\to90.7\%$, $p=0.14$, near its ceiling). Many variants were tried before it, so
-some selection bias remains.
+$89.5\to90.7\%$, $p=0.14$, near its ceiling). On an external visible-light set unused in training or selection (DUT Anti-UAV test~\cite{zhao2022antiuav}, $2{,}043+2{,}043$ patches, zero-shot, five seeds), recall is $94.5\pm1.2\%$, recall at $5\%$ FPR $90.4\pm1.6\%$ and AUROC $0.980$, while mAP@0.5 falls to $55.7\pm5.2\%$ under domain shift.
 
 \looseness=-1 With the regression head, a paired $t$-test over the five matched seeds
 finds no significant difference between configurations in mAP@0.5, mAP@0.75
@@ -603,19 +601,16 @@ and no on-board latency or power is reported. \textbf{Early exit.} It costs
 0.3--0.5 recall points (Section~\ref{sec:earlyexit}), and FPS is a GPU proxy; the
 Laplacian/Sobel prior shows no measurable gain (Section~\ref{sec:cbam}). \textbf{Localization.} EMA-Det's mAP is still below YOLOv8n's (about 6 points
 in mAP@0.5 from scratch, more in mAP@0.5:0.95), its strict-IoU metrics vary
-across seeds, and the head was designed after an analysis on the EO test split, so
-the EO gain may be slightly optimistic (thermal data and EO validation agree).
-\textbf{Recall definition.} Our recall is a classification-level acceptance rate
-that depends on the score threshold (Table~\ref{tab:baselines}); we also compare at a
-fixed false-positive rate.
+across seeds, and the head was designed from an error analysis on the EO test split
+(EO validation, thermal and external DUT data agree).
+\textbf{Recall.} Our recall is an acceptance rate at score 0.5 (Table~\ref{tab:baselines}); we also compare at a fixed false-positive rate.
 
 \section{Conclusion}\label{sec:conclusion}
 \looseness=-1 This extended version reports EMA-Det under a controlled protocol ($N{=}5$ seeds,
 source-level-split, deduplicated dataset). Decoupling the box head from the
 pooled classification feature improves localization and explains most of the
-earlier benefit of CBAM. Comparison with YOLOv8n and lightweight
-backbones shows that mAP alone is an unreliable guide to verifier quality, since
-system-level recall is bounded by the verifier's acceptance rate. EMA-Det
+earlier benefit of CBAM. mAP alone is an unreliable guide to verifier quality, since
+system-level recall is bounded by the acceptance rate. EMA-Det
 separates targets better than MobileNetV3-Small and ShuffleNetV2 at higher
 computational cost, and than YOLOv8n at a fixed false-alarm rate with far fewer
 FLOPs, but its localization is still weaker. Early exit saves 13.9--21.9\% of
