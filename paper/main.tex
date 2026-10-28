@@ -417,7 +417,7 @@ from scores that ignore it; the same analysis on the validation split gives the 
 picture, and two sets outside it agree: the EO validation split (mAP@0.5 $+11.2$ points,
 $p=0.001$) and the Anti-UAV410 thermal data (five seeds from scratch: mAP@0.5:0.95
 $51.82\pm1.62\to56.59\pm0.90\%$, $p=0.003$; mAP@0.75 $53.4\to61.8\%$, $p=0.006$; mAP@0.5
-$89.5\to90.7\%$, $p=0.14$, near its ceiling). On an external visible-light set unused in training or selection (DUT Anti-UAV test~\cite{zhao2022antiuav}, $2{,}043+2{,}043$ patches, zero-shot, five seeds), recall is $94.5\pm1.2\%$, recall at $5\%$ FPR $90.4\pm1.6\%$ and AUROC $0.980$, while mAP@0.5 falls to $55.7\pm5.2\%$ under domain shift.
+$89.5\to90.7\%$, $p=0.14$, near its ceiling). On an external visible-light set unused in training or selection (DUT Anti-UAV test~\cite{zhao2022antiuav}, $2{,}043+2{,}043$ patches, zero-shot, five seeds), recall is $94.5\pm1.2\%$, recall at $5\%$ FPR $90.4\pm1.6\%$ and AUROC $0.980$. With the training protocol's $128$\,px context window mAP@0.5 is $55.7\pm5.2\%$, because most DUT drones are smaller than the sizes seen in training (about $90\%$ when the drone spans at least $24\%$ of the patch side, $2\%$ below $18\%$); a $32$\,px window (a diagnostic chosen after this analysis) gives $84.0\pm1.8\%$.
 
 \looseness=-1 With the regression head, a paired $t$-test over the five matched seeds
 finds no significant difference between configurations in mAP@0.5, mAP@0.75
@@ -587,23 +587,21 @@ EMA-Det was trained from scratch on the thermal train/val split under
 the same protocol ($N{=}5$ seeds): mAP@0.5 $90.73\pm0.42\%$, mAP@0.5:0.95
 $56.59\pm0.90\%$, recall $91.89\pm0.29\%$ and precision $97.43\pm0.53\%$.
 mAP@0.5 and precision exceed both the zero-shot and the EO in-domain values;
-recall exceeds the zero-shot values but stays below the EO in-domain
-$96.46\pm0.81\%$. The same network thus reaches 90.7\% mAP@0.5 on thermal data,
-which points to domain shift rather than an architectural ceiling.
+recall exceeds only the zero-shot ones. This points to domain shift
+rather than an architectural ceiling.
 
 \section{Limitations}\label{sec:limitations}
-\looseness=-1 \textbf{Dataset size.} Deduplication leaves 4{,}136 patches
-(Section~\ref{sec:leakage}). \textbf{Cross-sensor generalization.} One
-benchmark (Anti-UAV410); no domain adaptation or multi-sensor training.
+\looseness=-1 \textbf{Data.} Deduplication leaves 4{,}136 patches
+(Section~\ref{sec:leakage}); cross-sensor transfer is tested on one benchmark, without adaptation.
 \textbf{Hardware validation.} Only Block~1 is validated; the time-multiplexed
 MAC array for Blocks~2--6 is unsolved (roadmap in Section~\ref{sec:hardware})
 and no on-board latency or power is reported. \textbf{Early exit.} It costs
 0.3--0.5 recall points (Section~\ref{sec:earlyexit}), and FPS is a GPU proxy; the
 Laplacian/Sobel prior shows no measurable gain (Section~\ref{sec:cbam}). \textbf{Localization.} EMA-Det's mAP is still below YOLOv8n's (about 6 points
 in mAP@0.5 from scratch, more in mAP@0.5:0.95), its strict-IoU metrics vary
-across seeds, and the head was designed from an error analysis on the EO test split
-(EO validation, thermal and external DUT data agree).
-\textbf{Recall.} Our recall is an acceptance rate at score 0.5 (Table~\ref{tab:baselines}); we also compare at a fixed false-positive rate.
+across seeds, it degrades for drones far smaller than the training sizes, and the head
+was designed from an error analysis on the EO test split.
+\textbf{Recall.} Ours is an acceptance rate at score 0.5 (Table~\ref{tab:baselines}); we also compare at fixed FPR.
 
 \section{Conclusion}\label{sec:conclusion}
 \looseness=-1 This extended version reports EMA-Det under a controlled protocol ($N{=}5$ seeds,
@@ -614,9 +612,8 @@ system-level recall is bounded by the acceptance rate. EMA-Det
 separates targets better than MobileNetV3-Small and ShuffleNetV2 at higher
 computational cost, and than YOLOv8n at a fixed false-alarm rate with far fewer
 FLOPs, but its localization is still weaker. Early exit saves 13.9--21.9\% of
-FLOPs for 0.3--0.5 recall points, and the cross-sensor gap is real but not
-catastrophic. A synthesized first block and a quantified roadmap scope the
-remaining FPGA work.
+FLOPs for 0.3--0.5 recall points. A synthesized first block and a roadmap
+scope the remaining FPGA work.
 
 \backmatter
 
@@ -630,21 +627,18 @@ The authors declare no conflict of interest.
 Not applicable (no human or animal subjects; public imagery, Section~\ref{sec:leakage}).
 
 \bmhead{Data availability}
-Dataset construction is described in Section~\ref{sec:leakage}, with code to
-regenerate it (see Code availability). Raw imagery is from the public
+Dataset construction (Section~\ref{sec:leakage}) can be regenerated with the released code. Raw imagery is from the public
 Kaggle~\cite{dasmehdixtr_kaggle} and Roboflow Universe~\cite{mohsen_roboflow}
-collections; the cross-sensor data is the public Anti-UAV410
-benchmark~\cite{antiuav410}.
+collections; the cross-sensor and external data are the public Anti-UAV410~\cite{antiuav410}
+and DUT Anti-UAV~\cite{zhao2022antiuav} benchmarks.
 
 \bmhead{Code availability}
 All model, training, dataset-construction, and evaluation code is
 available at \href{https://github.com/enesmertaydn/ema-det}{github.com/enesmertaydn/ema-det}.
 
 \bmhead{Author contribution}
-E.M.A.\ conceptualized the study, developed the architecture, dataset
-pipeline, code and hardware synthesis, and wrote the manuscript. O.T.\ and
-E.\c{C}.\ supervised the work and reviewed the manuscript. All authors
-approved the final manuscript.
+E.M.A.\ conceptualized the study, developed the architecture, dataset pipeline, code and
+hardware synthesis, and wrote the manuscript. O.T.\ and E.\c{C}.\ supervised and reviewed it. All authors approved it.
 
 {\footnotesize\setlength{\itemsep}{0pt}
 \bibliography{refs}}

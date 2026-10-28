@@ -17,7 +17,9 @@ import numpy as np
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DUT_ROOT = os.path.join(os.path.dirname(ROOT), "external_dut_test", "x", "test")
-OUT = os.path.join(ROOT, "data", "dut_antiuav_test")
+import sys
+FLOOR = int(sys.argv[1]) if len(sys.argv) > 1 else 128      # minimum context window in source pixels (128 = same as the EO builder)
+OUT = os.path.join(ROOT, "data", "dut_antiuav_test" if FLOOR == 128 else "dut_antiuav_test_floor%d" % FLOOR)
 PATCH_SIZE = 128
 CONTEXT_MULT = 3.0
 MIN_DRONE_PIX = 4
@@ -40,7 +42,7 @@ def crop_positive(img, box):
     if w < MIN_DRONE_PIX or h < MIN_DRONE_PIX:
         return None
     cx, cy = x + w / 2, y + h / 2
-    half = max(max(w, h) * CONTEXT_MULT / 2, PATCH_SIZE / 2)
+    half = max(max(w, h) * CONTEXT_MULT / 2, FLOOR / 2)
     px1, py1 = int(max(cx - half, 0)), int(max(cy - half, 0))
     px2, py2 = int(min(cx + half, w_img)), int(min(cy + half, h_img))
     pw, ph = px2 - px1, py2 - py1

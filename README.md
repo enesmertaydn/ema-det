@@ -84,7 +84,7 @@ Two variants of the final model (five seeds each, `src/new_variants_eval.py`, `r
   recall -0.7 points (p=0.004). An efficiency variant, not the final model.
 - external EO check (`src/build_dut_dataset.py`, `src/external_eval.py`, `results/external_dut_eval.json`): the five final seeds, zero-shot, on the
   DUT Anti-UAV detection test split (Zhao et al., IEEE T-ITS 2022; 2,043 positive + 2,043 hard-negative patches, never used in training or selection):
-  recall 94.47±1.17, recall@5%FPR 90.4±1.6, AUROC 0.980±0.001, mAP@0.5 55.7±5.2, mAP@0.5:0.95 20.4±3.9, box recall 67.6±1.5 (classification holds, localization drops under domain shift)
+  recall 94.47±1.17, recall@5%FPR 90.4±1.6, AUROC 0.980±0.001, mAP@0.5 55.7±5.2, mAP@0.5:0.95 20.4±3.9, box recall 67.6±1.5 (classification holds). The mAP drop is a size effect, not a general domain shift: `src/external_eval_by_scale.py` gives mAP@0.5 2.2 / 67.3 / 89.6 / 90.4 for drones spanning <0.18 / 0.18-0.24 / 0.24-0.27 / >=0.27 of the patch side (EO training median 0.45, 10th percentile 0.27); with a 32 px instead of 128 px minimum context window (`python src/build_dut_dataset.py 32`; diagnostic chosen after this analysis, `results/external_dut_eval_floor32.json`) mAP@0.5 84.0±1.8, mAP@0.5:0.95 36.7±4.2, box recall 85.7±1.3, AUROC 0.982
 - checkpoint selection by YOLOv8n's rule (`--select fitness`: 0.1 mAP@0.5 + 0.9 mAP@0.5:0.95 on the validation split instead of mAP@0.5):
   mAP@0.5:0.95 45.74±2.13% (+5.1 points, p=0.10, not significant over five seeds), mAP@0.75 47.25±2.47%, mean IoU 71.65±1.04%, box recall
   unchanged (p=0.82), recall 1.0 point lower (95.44±0.97%, p=0.012). Still below YOLOv8n (49.6% from scratch).

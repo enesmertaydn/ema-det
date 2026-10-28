@@ -17,7 +17,8 @@ sys.path.insert(0, os.path.join(ROOT, "src"))
 from variants_eval import auroc, xyxy  # noqa: E402
 
 RES = os.path.join(ROOT, "results")
-TEST = os.path.join(ROOT, "data", "dut_antiuav_test")
+TAG = sys.argv[1] if len(sys.argv) > 1 else ""      # e.g. "_floor32"
+TEST = os.path.join(ROOT, "data", "dut_antiuav_test" + TAG)
 SEEDS = [42, 7, 123, 2024, 31415]
 KEYS = ("map50", "map75", "map50_95", "precision", "recall", "f1", "mean_iou")
 
@@ -58,7 +59,7 @@ def main():
         print(sd, {k: round(v, 3) for k, v in row.items()}, flush=True)
     out = {"n_patches": int(len(ds)), "n_pos": int(pos.sum()), "per_seed": rows,
            "summary": {k: [float(np.mean([r[k] for r in rows])), float(np.std([r[k] for r in rows]))] for k in rows[0]}}
-    json.dump(out, open(os.path.join(RES, "external_dut_eval.json"), "w"), indent=2)
+    json.dump(out, open(os.path.join(RES, "external_dut_eval%s.json" % TAG), "w"), indent=2)
     print({k: "%.2f +/- %.2f" % tuple(v) if k != "auroc" else "%.4f +/- %.4f" % tuple(v) for k, v in out["summary"].items()})
 
 
