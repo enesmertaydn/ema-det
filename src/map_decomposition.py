@@ -21,7 +21,8 @@ from torchmetrics.detection.mean_ap import MeanAveragePrecision
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "src"))
-TEST = os.path.join(ROOT, "data", "shuffled_dataset_detect_clean", "test")
+SPLIT = sys.argv[1] if len(sys.argv) > 1 else "test"
+TEST = os.path.join(ROOT, "data", "shuffled_dataset_detect_clean", SPLIT)
 SEEDS = [42, 7, 123, 2024, 31415]
 
 
@@ -84,7 +85,7 @@ def main():
                   "map50_95": [float(np.mean([r[k][1] for r in rows])), float(np.std([r[k][1] for r in rows]))]}
     for k in ("mean_iou_positives", "frac_iou_ge_0.5"):
         out[k] = [float(np.mean([r[k] for r in rows])), float(np.std([r[k] for r in rows]))]
-    json.dump(out, open(os.path.join(ROOT, "results", "map_decomposition.json"), "w"), indent=2)
+    json.dump(out, open(os.path.join(ROOT, "results", "map_decomposition.json" if SPLIT == "test" else "map_decomposition_%s.json" % SPLIT), "w"), indent=2)
     print({k: v for k, v in out.items() if k != "per_seed"})
 
 

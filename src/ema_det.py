@@ -278,8 +278,10 @@ class EMADet(nn.Module):
 
     def __init__(self, use_attention: bool = False, dropout: float = 0.4,
                  use_spatial_bbox: bool = True, physical_init: bool = True,
-                 fusion_bbox: bool = False, c6: int = 256, ds_deep: bool = False, center_head: bool = False, center_grid: int = 16):
+                 fusion_bbox: bool = False, c6: int = 256, ds_deep: bool = False, center_head: bool = False, center_grid: int = 16,
+                 ds_all: bool = False):
         super().__init__()
+        ds_deep = ds_deep or ds_all                       # ds_all: depthwise-separable Blocks 2-6 (Block 1 keeps the edge-kernel bank)
         self.fusion_bbox = fusion_bbox
         self.center_head = center_head
         self.c6 = c6
@@ -291,12 +293,12 @@ class EMADet(nn.Module):
         self.pool1  = nn.MaxPool2d(2)
 
         # Block 2 — 16 -> 32, 64 -> 32
-        self.block2 = conv_block(16, 32)
+        self.block2 = conv_block_ds(16, 32) if ds_all else conv_block(16, 32)
         self.pool2  = nn.MaxPool2d(2)
         self.gate1  = EarlyExitGate(32)
 
         # Block 3 — 32 -> 64, 32 -> 16
-        self.block3 = conv_block(32, 64)
+        self.block3 = conv_block_ds(32, 64) if ds_all else conv_block(32, 64)
         self.attn3  = CBAM(64) if use_attention else Identity2()
         self.pool3  = nn.MaxPool2d(2)
 

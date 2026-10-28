@@ -79,6 +79,8 @@ class Config:
     c6: int = 256                   # Block-6 width (pilot: 128 = narrow variant, tag "_c6<w>")
     ds_deep: bool = False           # depthwise-separable Blocks 4-6 (pilot, tag "_dsdeep")
     aug_v2: bool = False            # label-consistent scale/rotation/translation + target-safe occlusion (tag "_augv2")
+    select: str = "map50"            # checkpoint / early-stopping metric: map50 (default) or fitness = 0.1 mAP@0.5 + 0.9 mAP@0.5:0.95 (Ultralytics rule, tag "_fit")
+    ds_all: bool = False            # depthwise-separable Blocks 2-6 (tag "_dsall")
     center_grid: int = 16           # 32: fine-grid centre head for small targets (tag "_centerhead32")
     center_head: bool = False       # centre-based localization head (tag "_centerhead")
     kd_w: float = 0.0               # >0: feature distillation from a COCO YOLOv8n teacher (train only, tag "_kd")
@@ -137,7 +139,7 @@ def _kd_loss(student_feats, adapters, teacher_feats):
 
 def _arch_suffix(cfg) -> str:
     """Tag suffix distinguishing architecture variants (legacy head, random init)."""
-    return ("_legacygapbbox" if not cfg.use_spatial_bbox else "") + ("_randinit" if not cfg.physical_init else "") + ("_frozen" if cfg.freeze_kernels else "") + ("_fusionbbox" if cfg.fusion_bbox else "") + ("_c6%d" % cfg.c6 if cfg.c6 != 256 else "") + ("_dsdeep" if cfg.ds_deep else "") + ("_kd" if cfg.kd_w > 0 else "") + ("_augv2" if cfg.aug_v2 else "") + (("_centerhead" + ("32" if cfg.center_grid == 32 else "")) if cfg.center_head else "")
+    return ("_legacygapbbox" if not cfg.use_spatial_bbox else "") + ("_randinit" if not cfg.physical_init else "") + ("_frozen" if cfg.freeze_kernels else "") + ("_fusionbbox" if cfg.fusion_bbox else "") + ("_c6%d" % cfg.c6 if cfg.c6 != 256 else "") + ("_dsdeep" if cfg.ds_deep else "") + ("_kd" if cfg.kd_w > 0 else "") + ("_augv2" if cfg.aug_v2 else "") + (("_centerhead" + ("32" if cfg.center_grid == 32 else "")) if cfg.center_head else "") + ("_dsall" if cfg.ds_all else "") + ("_fit" if cfg.select == "fitness" else "")
 
 
 # ==============================================================================
@@ -360,7 +362,8 @@ def evaluate(model: nn.Module, data_dir: str, device: torch.device, img_size: in
                                      device=device).unsqueeze(0)
                 tp, fp, fn, iou_sum, iou_cnt = _accumulate_batch(
                     metric, tp, fp, fn, iou_sum, iou_cnt, score_t, bbox_t, lbl_t, gt_t,
-                    img_size, conf_thresh, has_pred=has_pred_t)
+                    img_size, conf_thresh, has_pred=has_pred_t,
+                    map_scores=out.det_score if out.det_score is not None else None)
 
     tm_res = metric.compute()
     map50    = float(tm_res.get("map_50", torch.tensor(0.0))) * 100
@@ -384,7 +387,7 @@ def train_one_run(seed: int, use_attention: bool, cfg: Config, device: torch.dev
 
     set_seed(seed)
     model = EMADet(use_attention=use_attention, use_spatial_bbox=cfg.use_spatial_bbox,
-                   physical_init=cfg.physical_init, fusion_bbox=cfg.fusion_bbox, c6=cfg.c6, ds_deep=cfg.ds_deep, center_head=cfg.center_head, center_grid=cfg.center_grid).to(device)
+                   physical_init=cfg.physical_init, fusion_bbox=cfg.fusion_bbox, c6=cfg.c6, ds_deep=cfg.ds_deep, center_head=cfg.center_head, center_grid=cfg.center_grid, ds_all=cfg.ds_all).to(device)
 
     flops_str, params_str, n_params = measure_complexity(model, device, cfg.img_size)
     print(f"  Params: {params_str} ({n_params:,})   FLOPs: {flops_str}")
@@ -474,8 +477,9 @@ def train_one_run(seed: int, use_attention: bool, cfg: Config, device: torch.dev
               f"e1:{tloss_e1/n_batches:.3f} e2:{tloss_e2/n_batches:.3f}) | "
               f"Val mAP@.5:{val_res.map50:.1f}% | LR:{cur_lr:.1e}", end="")
 
-        stop = stopper.step(val_res.map50, model)
-        if val_res.map50 >= stopper.best:
+        sel = val_res.map50 if cfg.select == "map50" else 0.1 * val_res.map50 + 0.9 * val_res.map50_95
+        stop = stopper.step(sel, model)
+        if sel >= stopper.best:
             torch.save(stopper.best_state or model.state_dict(), ckpt_path)
             print("  * saved", end="")
         print()
@@ -692,6 +696,8 @@ def main():
     parser.add_argument("--fusion_bbox", action="store_true", help="pilot: multi-scale (16x16 + 4x4) box head")
     parser.add_argument("--c6", type=int, default=256, help="pilot: Block-6 output width")
     parser.add_argument("--ds_deep", action="store_true", help="pilot: depthwise-separable Blocks 4-6")
+    parser.add_argument("--select", choices=["map50", "fitness"], default="map50", help="checkpoint selection metric (fitness: 0.1 mAP@0.5 + 0.9 mAP@0.5:0.95)")
+    parser.add_argument("--ds_all", action="store_true", help="depthwise-separable Blocks 2-6")
     parser.add_argument("--center_grid", type=int, default=16, choices=[16, 32], help="grid of the centre head (32: finer, for small targets)")
     parser.add_argument("--center_head", action="store_true", help="pilot: centre-based localization head (heat map + offset + size)")
     parser.add_argument("--kd_w", type=float, default=0.0, help="pilot: feature-distillation weight (0 = off)")
@@ -712,6 +718,8 @@ def main():
     cfg.kd_w = args.kd_w
     cfg.center_head = args.center_head
     cfg.center_grid = args.center_grid
+    cfg.select = args.select
+    cfg.ds_all = args.ds_all
     cfg.aug_v2 = args.aug_v2
     cfg.ds_deep = args.ds_deep
 
@@ -729,7 +737,7 @@ def main():
     if False in configs_to_run:
         final_tag = "final" + _arch_suffix(cfg)
         best_final = EMADet(use_attention=False, use_spatial_bbox=cfg.use_spatial_bbox,
-                            physical_init=cfg.physical_init, fusion_bbox=cfg.fusion_bbox, c6=cfg.c6, ds_deep=cfg.ds_deep, center_head=cfg.center_head, center_grid=cfg.center_grid).to(torch.device(cfg.device))
+                            physical_init=cfg.physical_init, fusion_bbox=cfg.fusion_bbox, c6=cfg.c6, ds_deep=cfg.ds_deep, center_head=cfg.center_head, center_grid=cfg.center_grid, ds_all=cfg.ds_all).to(torch.device(cfg.device))
         best_final.load_state_dict(torch.load(results[final_tag]["best_ckpt"], map_location=cfg.device))
         ee_rows = analyze_early_exit_table(best_final, cfg)
         print_early_exit_table(ee_rows)
