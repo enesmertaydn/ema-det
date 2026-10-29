@@ -353,7 +353,7 @@ coarse dropout.
 
 \begin{table*}[t]
 \centering
-\caption{Localization head, CBAM, initialization and size ablations, identical $N{=}5$-seed/150-epoch protocol. Mean $\pm$ std, test set. Rows above the line use the spatial regression head (parameters of the variants in brackets; regression head: 1.53M); below it, the final centre-based head (1.66M) and three variants.}\label{tab:cbam}
+\caption{Localization head, CBAM, initialization and size ablations, identical $N{=}5$-seed/150-epoch protocol. Mean $\pm$ std, test set. Rows above the line use the spatial regression head (parameters of the variants in brackets; regression head: 1.53M); below it, the final centre-based head (1.66M) and four variants.}\label{tab:cbam}
 \tablebodyfont
 \adjustbox{max width=\linewidth}{%
 \begin{tabular}{lccccccc}
@@ -373,6 +373,7 @@ Centre-based head (final, 1.66M) & $73.58{\pm}1.63$ & $38.25{\pm}9.92$ & $40.60{
 Centre head, depthwise Blocks 2--6 (0.36M) & $70.98{\pm}2.40$ & $33.74{\pm}6.07$ & $37.15{\pm}3.13$ & $93.06{\pm}0.78$ & $95.76{\pm}0.99$ & $94.38{\pm}0.66$ & $66.71{\pm}2.00$ \\
 Centre head, fitness selection (1.66M) & $74.97{\pm}1.85$ & $47.25{\pm}2.47$ & $45.74{\pm}2.13$ & $94.73{\pm}0.54$ & $95.44{\pm}0.97$ & $95.08{\pm}0.36$ & $71.65{\pm}1.04$ \\
 Centre head, scale augmentation (1.66M) & $76.79{\pm}1.31$ & $43.47{\pm}3.44$ & $42.61{\pm}1.44$ & $94.03{\pm}1.20$ & $96.46{\pm}0.31$ & $95.22{\pm}0.70$ & $69.56{\pm}0.95$ \\
+Centre head, Block~6 narrowed to 128 ch (1.06M) & $72.75{\pm}2.19$ & $38.79{\pm}4.25$ & $39.82{\pm}2.78$ & $95.19{\pm}0.65$ & $94.94{\pm}1.34$ & $95.05{\pm}0.41$ & $68.39{\pm}1.62$ \\
 \botrule
 \end{tabular}}
 \end{table*}
@@ -405,7 +406,7 @@ YOLOv8n (COCO), score threshold 0.1 & -- & -- & $97.47{\pm}0.66$ & $83.23{\pm}1.
 \subsection{CBAM Trade-off and Initialization Ablations}\label{sec:cbam}
 
 \looseness=-1 Table~\ref{tab:cbam} reports the controlled $N{=}5$ comparison: the spatial regression head
-(Section~\ref{sec:spatialbbox}) above the line, the final centre-based head and three variants below.
+(Section~\ref{sec:spatialbbox}) above the line, the final centre-based head and four variants below.
 
 \looseness=-1 \textbf{Localization head.} The centre-based head changes localization only:
 mAP@0.5 rises from $58.03$ to $73.58\%$ ($p=0.0001$), mAP@0.5:0.95 from $28.04$ to
@@ -430,18 +431,17 @@ restored it adds no localization benefit, so the final model leaves it out.
 
 \looseness=-1 \textbf{Initialization.} The two initialization rows of Table~\ref{tab:cbam}
 repeat the regression-head model with a random first layer and with the twelve fixed kernels
-frozen (same seeds and protocol). The differences are within noise (paired
+frozen. The differences are within noise (paired
 $t$-test, random initialization: mAP@0.5 $p=0.98$, recall $p=0.93$; frozen
 kernels: $p=0.44$ and $0.26$). The prior thus brings no measurable gain, and we
 make no performance claim for it.
 
 \looseness=-1 \textbf{Size.} With the regression head, depthwise-separable Blocks~4--6 (0.30M parameters, 265.6M FLOPs),
 Block~6 narrowed to 128 channels (0.93M, 404.2M FLOPs) and a multi-scale head
-(+0.19M) show no significant difference from the regression head in any metric ($p>0.05$;
-the multi-scale head, better in a single-seed pilot, did not hold). Depthwise
+(+0.19M) show no significant difference from the regression head in any metric ($p>0.05$). Depthwise
 Blocks~2--6 of the final model (0.36M parameters, 133M FLOPs) lower mAP@0.5 and
 mAP@0.5:0.95 by 2.6 and 3.5 points ($p=0.23$, $0.37$) and recall by 0.7 points
-($p=0.004$): an efficiency variant, not the final model.
+($p=0.004$): an efficiency variant, not the final model. On the final model, Block~6 at 128 channels (1.06M, 464.6M FLOPs) changes mAP@0.5 by $-0.8$ and recall by $-1.5$ points ($p=0.59$, $0.18$) and is not adopted.
 
 \looseness=-1 \textbf{Checkpoint selection.} We chose checkpoints by validation mAP@0.5, YOLOv8n by
 $0.1\,$mAP@0.5$\,+\,0.9\,$mAP@0.5:0.95. With
