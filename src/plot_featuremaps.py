@@ -3,7 +3,7 @@
 plot_featuremaps.py -- first-layer (Laplacian/Sobel-initialized) feature maps
 for the paper (revision, Reviewer 3). Shows, for one UAV and one hard-negative
 test patch, the raw 3x3-conv responses of Block 1 of the trained EMA-Det
-(final, seed 42) for the Laplacian, Sobel-x and Sobel-y channels, next to a
+(final, centre-head model, seed 42) for the Laplacian, Sobel-x and Sobel-y channels, next to a
 channel of an identically shaped randomly (Kaiming-uniform) initialised layer.
 Also reports how far the trained kernels stay from their physical priors.
 """
@@ -26,8 +26,8 @@ def imread(p):
     return np.array(Image.open(p).convert("L"))
 
 def load(seed):
-    m = EMADet(use_attention=False, use_spatial_bbox=True)
-    m.load_state_dict(torch.load(os.path.join(RES, f"emadet_final_seed{seed}.pt"), map_location="cpu"))
+    m = EMADet(center_head=True)   # final model: centre-based head
+    m.load_state_dict(torch.load(os.path.join(RES, f"emadet_final_centerhead_seed{seed}.pt"), map_location="cpu"))
     return m.eval()
 
 # ---- kernel drift: cosine similarity of trained vs. initial kernel (channels 0-11)
